@@ -108,9 +108,9 @@ By focusing on a specific use case (fall detection), we establish a proven frame
 │            ┌───────────────────────────┼─────────────────────────┐            │
 │            │                           │                         │            │
 │  ┌─────────▼────────┐  ┌───────────────▼────────────┐  ┌─────────▼─────────┐  │
-│  │  MQTT-InfluxDB   │  │   Custom LSTM - Fall       │  │ Grafana Dashboard │  │
-│  │      Bridge      │  │   Detection Service│       │  |    (Port 3000)    │  │
-│  │  -- Docker --    │  │      -- Docker --          │  │   -- Docker --    │  │
+│  │  MQTT-InfluxDB   │  │        Custom LSTM -       │  │ Grafana Dashboard │  │
+│  │      Bridge      │  │   Fall Detection Service   │  |    (Port 3000)    │  │
+│  │  -- Docker --    │  │       -- Docker --         │  │   -- Docker --    │  │
 │  └────┬─────────────┘  └──┬──────────┬───────────┬──┘  └───────────────────┘  │
 │       │                   │          |           |                            │
 │  ┌────▼───────────────────▼───┐ ┌────▼────┐ ┌────▼────┐                       │
