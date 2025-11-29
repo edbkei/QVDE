@@ -536,6 +536,7 @@ sudo docker-compose logs -f
 
 ## 📁 Project Structure
 
+In NVIDIA Jetson Orin Nano, in NVMe storage, at directory /mnt/nvme/iot-stack:
 ```
 iot-fall-detection/
 ├── README.md                          # This file
@@ -583,6 +584,15 @@ iot-fall-detection/
     └── deploy.sh                      # Deployment automation
 ```
 
+At Windows/Laptop
+```
+Project\fall-detection-operator:
+├── operator_interface.py              # Operation Web Interface, Streamlit
+├── sensor_simulator_improved.ipynb    # IoT traffic generatorm, MQTT - Jupyter Notebook
+├── START_HERE.txt                     # Quick system introduction
+├── DEPLOYMENT_GUIDE.md                # Operation overview
+
+```
 ---
 
 ### Development Guidelines
@@ -707,16 +717,4 @@ Found a bug? Have a feature request?
 
 ---
 
-## 🌟 Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=yourusername/iot-fall-detection&type=Date)](https://star-history.com/#yourusername/iot-fall-detection&Date)
-
----
-
-<div align="center">
-
-**Built with ❤️ for safer, smarter homes**
-
-[⬆ Back to Top](#-multi-house-iot-fall-detection-system)
-
-</div>
