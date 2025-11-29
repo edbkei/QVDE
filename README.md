@@ -241,7 +241,7 @@ The system uses digital twins for:
 
 **Hardware Requirements:**
 - NVIDIA Jetson Orin Nano (or compatible edge device)
-- 16GB+ microSD card or NVMe SSD. In case of QVDE, all apps are installed on NVMe SSD, as its performance is 10x faster than microSD, and it supports 256 GB storage, and microSD only 128 GB.
+- 16GB+ microSD card or NVMe SSD. In case of QVDE, all apps are installed under NVMe SSD, as its performance is 10x faster than microSD, and it supports 256 GB storage, and microSD only 128 GB.
 - Network connectivity (Ethernet or WiFi)
 - (Optional) Wearable accelerometer sensors
 
@@ -299,11 +299,14 @@ The system uses digital twins for:
    python -m venv c:\ ... project\fall-detection-operator
 
    cd ... \project\fall-detection-operator
+   
    # Activate venv virtual environment
    venv\Script\activate
+   
    # Deactivate venv virtual environment
    venv\Script\deactivate
-   
+
+   # Open Operation Web Interface
    streamlit run operator_interface.py
 
       You can now view your Streamlit app in your browser.
@@ -346,7 +349,7 @@ Use the provided Jupyter notebook to simulate sensor data:
 # Open sensor_simulator_clean.ipynb on your laptop
 
 # Configure connection
-JETSON_IP = "192.168.15.116"  # Your Jetson IP
+JETSON_IP = "xxx.xxx.xxx.xxx"  # Your Jetson IP
 
 # Run continuous simulation
 generate_inference_data(
@@ -366,7 +369,7 @@ from datetime import datetime
 
 # Connect to MQTT broker
 client = mqtt.Client()
-client.connect("192.168.15.116", 1883, 60)
+client.connect("xxx.xxx.xxx.xxx", 1883, 60)
 
 # Publish sensor reading
 payload = {
@@ -614,7 +617,7 @@ If you use this system in your research, please cite:
 ```bibtex
 @software{iot_fall_detection_2025,
   author = {Eduardo S. Ito},
-  title = {Multi-agent AI System for Extended Home Quality of Life},
+  title = {QVDE, Extended Home Quality of Life},
   year = {2025},
   publisher = {GitHub},
   url = {https://github.com/edbkei/QVDE},
@@ -634,8 +637,8 @@ If you use this system in your research, please cite:
 - **NVIDIA**: For Jetson platform and GPU acceleration
 - **Anthropic**: For AI research support
 - **Open Source Community**: For foundational tools and libraries
-- **Research Advisors**: [Add your advisors]
-- **Funding**: [Add funding sources if applicable]
+- **Research Advisors**: None
+- **Funding**: None
 
 ---
 
