@@ -341,7 +341,18 @@ The system uses digital twins for:
 
 ## 📊 Usage
 
-### 1. Sensor Simulation (Development/Testing)
+### 1. Turn on/off NVIDIA Jetson Orin Nano
+```
+# Turn on NVIDIA Jetson
+Check red light on & fan running.
+
+# Turn off NVIDIA Jetson
+sudo shutdown now
+Check red light off & fan stopped.
+
+```
+
+### 2. Sensor Simulation (Development/Testing)
 
 Use the provided Jupyter notebook to simulate sensor data:
 
@@ -358,7 +369,7 @@ generate_inference_data(
 )
 ```
 
-### 2. Real Sensor Integration
+### 3. Real Sensor Integration
 
 For production deployment with real sensors:
 
@@ -400,7 +411,7 @@ topic = "iot/house_001/fall_detection/accelerometer/sensor_accel_bedroom_001"
 client.publish(topic, json.dumps(payload), qos=1)
 ```
 
-### 3. Model Training
+### 4. Model Training
 
 Generate labeled training data:
 
@@ -421,7 +432,7 @@ mosquitto_pub -h localhost \
   -m '{"command":"start_training","parameters":{"hours":24,"epochs":100,"validation_split":0.2}}'
 ```
 
-### 4. Model Management
+### 5. Model Management
 
 ```bash
 # List available models
