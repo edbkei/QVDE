@@ -44,6 +44,7 @@ This system monitors accelerometer and gyroscope data from wearable devices used
 - Body temperature monitoring
 - Heart rate variability analysis
 - Medication adherence tracking
+etc.
 
 By focusing on a specific use case (fall detection), we establish a proven framework that can be theoretically reused for a wide variety of medical applications.
 
@@ -179,7 +180,7 @@ Wearable Sensor → MQTT → Bridge → InfluxDB → LSTM Model → RL Agent →
 - **Mosquitto (v2.0+)**: MQTT message broker
 - **InfluxDB (v2.7+)**: Time-series database
 - **Grafana (v10+)**: Visualization and monitoring
-- **Streamlit (3.13)**: Operation web interface to control the training/inference phase of a ML/AI model.
+- **Streamlit (3.13+)**: Operation web interface to control the training/inference phase of a ML/AI model.
 
 ### AI/ML Stack
 - **Python 3.8+**: Core programming language
@@ -240,7 +241,7 @@ The system uses digital twins for:
 
 **Hardware Requirements:**
 - NVIDIA Jetson Orin Nano (or compatible edge device)
-- 16GB+ microSD card or NVMe SSD
+- 16GB+ microSD card or NVMe SSD. In case of QVDE, all apps are installed on NVMe SSD, as its performance is 10x faster than microSD, and it supports 256 GB storage, and microSD only 128 GB.
 - Network connectivity (Ethernet or WiFi)
 - (Optional) Wearable accelerometer sensors
 
@@ -290,6 +291,28 @@ The system uses digital twins for:
    
    # Check LSTM service
    sudo docker logs custom-lstm-detector
+   ```
+
+5. **Install Streamlit**
+   ```bash
+   # create venv virtual environment: https://docs.python.org/3/library/venv.html
+   python -m venv c:\ ... project\fall-detection-operator
+
+   cd ... \project\fall-detection-operator
+   # Activate venv virtual environment
+   venv\Script\activate
+   # Deactivate venv virtual environment
+   venv\Script\deactivate
+   
+   streamlit run operator_interface.py
+
+      You can now view your Streamlit app in your browser.
+
+      Local URL: http://localhost:8501
+      Network URL: http://xxx.xxx.xxx.xxx:8501 
+   
+   # Check URL://xxx.xxx.xxx.xxx:8501
+   
    ```
 
 ### First-Time Setup
