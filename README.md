@@ -627,7 +627,7 @@ If you use this system in your research, please cite:
 ```bibtex
 @software{iot_fall_detection_2025,
   author = {Eduardo S. Ito},
-  title = {QVDE, Extended Home Quality of Life},
+  title = {QVDE, Qualidade de Vida Estendida},
   year = {2025},
   publisher = {GitHub},
   url = {https://github.com/edbkei/QVDE},
