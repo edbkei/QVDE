@@ -92,7 +92,7 @@ By focusing on a specific use case (fall detection), we establish a proven frame
 ├───────────────────────────────────────────────────────────────────────────────┤
 │                                                                               │
 │  ┌──────────────┐  ┌──────────────────┐  ┌──────────────┐  ┌──────────────┐   │
-│  │  Wearable    │  │    Sensor        │  │  Operation   |  │  Other IoT   |   |
+│  │  Wearable    │  │    Sensor        │  │ Operation Web|  │  Other IoT   |   |
 │  │  Sensors     │  │   Simulator      │  │  Interface   |  |  Devices     |   |
 │  │ (Accel/Gyro) │  │(Jupyter Notebook)|  | (Port 8501)  │  |              │   │
 |  |              |  |   -- Laptop --   |  | -- Laptop -- |  |              |   | 
@@ -179,6 +179,7 @@ Wearable Sensor → MQTT → Bridge → InfluxDB → LSTM Model → RL Agent →
 - **Mosquitto (v2.0+)**: MQTT message broker
 - **InfluxDB (v2.7+)**: Time-series database
 - **Grafana (v10+)**: Visualization and monitoring
+- **Streamlit (3.13)**: Operation web interface to control the training/inference phase of a ML/AI model.
 
 ### AI/ML Stack
 - **Python 3.8+**: Core programming language
@@ -195,6 +196,7 @@ Wearable Sensor → MQTT → Bridge → InfluxDB → LSTM Model → RL Agent →
 
 ### Development Tools
 - **Jupyter Notebook**: Sensor simulation and experimentation
+- **Streamlit**: Operation web interface
 - **Git**: Version control
 - **Docker**: Containerization
 
@@ -247,6 +249,7 @@ The system uses digital twins for:
 - Docker 24.0+
 - Docker Compose 2.0+
 - Python 3.8+
+- Streamlit 3.13+
 
 ### Installation
 
@@ -555,32 +558,6 @@ iot-fall-detection/
 ```
 
 ---
-
-## 🤝 Contributing
-
-Contributions are welcome! This is an active research project.
-
-### How to Contribute
-
-1. **Fork the Repository**
-2. **Create a Feature Branch**
-   ```bash
-   git checkout -b feature/your-feature-name
-   ```
-3. **Make Your Changes**
-4. **Test Thoroughly**
-   - Verify Docker containers start correctly
-   - Test data flow end-to-end
-   - Validate model predictions
-5. **Commit with Clear Messages**
-   ```bash
-   git commit -m "feat: add support for blood pressure monitoring"
-   ```
-6. **Push to Your Fork**
-   ```bash
-   git push origin feature/your-feature-name
-   ```
-7. **Open a Pull Request**
 
 ### Development Guidelines
 
