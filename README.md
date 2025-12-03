@@ -291,10 +291,23 @@ The system uses digital twins for:
    
    # Check LSTM service
    sudo docker logs custom-lstm-detector
+
+   # Check bridge logs
+   docker logs mqtt-influx-bridge
+
+   # restart MQTT if needed
+   docker-compose restart mosquitto
    ```
 
 5. **Install Streamlit**
    ```bash
+   # Install dependencies
+   pip install -r requirements-operator.txt
+   # if needed, pip install streamlit paho-mqtt pandas plotly
+
+   # if new deployment
+   docker-compose up -d
+   
    # create venv virtual environment: https://docs.python.org/3/library/venv.html
    python -m venv c:\ ... project\fall-detection-operator
 
@@ -315,8 +328,82 @@ The system uses digital twins for:
       Network URL: http://xxx.xxx.xxx.xxx:8501 
    
    # Check URL://xxx.xxx.xxx.xxx:8501
+
+   # In new terminal, start Jupyter
+   jupyter notebook or Anaconda/Jupyter/ choose sensor_simulator.ipynb
    
    ```
+### Evidence that all connections are good
+cd /mnt/nvme/iot-stack
+
+docker logs --tail=20 mqtt-influx-bridge
+
+### Check LSTM service logs
+docker logs --tail=30 custom-lstm-detector
+
+### from operator interface send list_models
+List of models in the /app/models directory
+
+Note: List of available models, status response back to MQTT.
+
+### Test sensor simulator in inference mode
+### Send a single test reading
+simulator.send_reading(is_fall=False, operational_mode="inference")
+
+### check the  bridge logs:
+### should see: 
+ - DEBUG: Received message
+ - Topic: io/house_001/fall_detection?accelerometer/sensor_
+ - Has sensor_data: True
+ - Write successful
+
+### 📊 Understanding Log Output
+
+### Breaking down what each part means:
+```
+?? DEBUG: Received message
+   Topic: iot/model/fall_detection/command
+```
+↳ **Good**: Bridge received MQTT message on command topic
+```
+   Payload length: 119 bytes
+   First 200 chars: b'{"command": "list_models", ...}'
+```
+↳ **Good**: Valid JSON command from Operator Interface
+```
+📋 Model Command: list_models
+   Parameters: {}
+```
+↳ **Good**: Bridge correctly parsed the command
+```
+?? Attempting write to bucket: sensors
+   Point (first 300 chars): model_commands,application=fall_detection,command=list_models parameters="{}"
+✅ Write successful to sensors!
+
+
+# 1. Operator Interface is Connected
+Topic: iot/model/fall_detection/command
+"command": "list_models"
+"source": "operator_interface"
+
+Note: This shows operator interface successfully sent the list_models command to Jetson
+
+# 2. MQTT Bridge is Working
+📋 Model Command: list_models
+   Parameters: {}
+✅ Write successful to sensors!
+
+Note: The bridge received the command and logged it to InfluxDB
+
+# 3. Communication flow is Active
+Operator Interface (Desktop) 
+    → MQTT Command 
+    → Jetson MQTT Broker 
+    → MQTT Bridge 
+    → Logged Successfully
+Note: Commands being received and processed
+
+
 
 ### First-Time Setup
 
@@ -338,6 +425,23 @@ The system uses digital twins for:
    ```
 
 ---
+
+## 📊 Understanding Which Model is Better
+Key Metrics (in order of importance):
+
+| Metric |What It Means | Target |
+|--------|--------------|--------|
+| Recall | % of real falls detected | >90% (Most Important!) |
+| Accuracy | % of correct predictions overall | >90% |
+| Precision | % of fall alerts that are real | >85% |
+|F1 Score | Balance of precision & recall | >0.90 |
+
+Example Comparison between models:
+
+- v1.2.0: Accuracy 96.5%, Recall 95.8%, F1 0.950, 1000 samples
+- v1.1.0: Accuracy 92.0%, Recall 90.0%, F1 0.892, 500 samples
+
+Winner: v1.2.0 🏆 (Better in every metric!)
 
 ## 📊 Usage
 
@@ -507,7 +611,115 @@ sudo docker stats
 
 # View logs
 sudo docker-compose logs -f
+
+# View models with metrics
+docker logs custom-lstm-detector | grep -A 50 "AVAILABLE MODELS"
+
+# Newer command format
+docker compose ps
+docker ps
+
+docker compose logs --tail=20 mqtt-influx-bridge
+docker compose logs --tail=30 custom-lstm-detector
+
+# docker-compose version
+docker-compose --version
+
+# docker compose restart
+docker compose restart
+
+# if docker ps fails. docker daemon probably not runninig or permission issue. Check.
+# Start Docker
+sudo systemctl start docker
+
+# Check status
+sudo systemctl status docker
+
+# Add user to docker group
+sudo usermod -aG docker $USER
+newgrp docker
+
+# How to Restart Properly
+# Stop all services
+docker compose down
+
+# Wait a moment
+sleep 2
+
+# Start all services fresh
+docker compose up -d
+
+# Verify all started correctly
+docker compose ps
 ```
+
+### Expected Output:
+```
+NAME                    STATUS
+influxdb               Up
+grafana                Up  
+mosquitto              Up
+mqtt-influx-bridge     Up
+custom-lstm-detector   Up
+
+# Check services directly (bypasses docker-compose)
+# Use docker directly (bypasses docker-compose)
+docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+
+# Or simpler
+docker ps
+
+# Check logs
+docker logs --tail=20 mqtt-influx-bridge
+docker logs --tail=30 custom-lstm-detector
+
+# Quick Test. to verify docker is working
+# Test 1: Docker daemon
+docker ps
+
+# Test 2: Your containers
+docker ps | grep -E "(mqtt|lstm|influx)"
+
+# Test 3: Logs work
+docker logs --tail=5 mqtt-influx-bridge
+
+# This should work regardless of docker-compose issue
+docker logs custom-lstm-detector | grep -A 50 "AVAILABLE MODELS"
+
+# Check current model
+docker logs custom-lstm-detector | grep "CURRENT"
+
+# Check MQTT bridge
+docker logs --tail=20 mqtt-influx-bridge
+
+# View full model list with all details
+docker logs custom-lstm-detector | grep -A 50 "AVAILABLE MODELS"
+
+# If that doesn't show enough, try:
+docker logs custom-lstm-detector | tail -200 | grep -A 50 "AVAILABLE"
+```
+
+This will show something like:
+```
+================================================================================
+AVAILABLE MODELS
+================================================================================
+v1.2.0
+  Created: 2025-11-02T11:42:08
+  Trained samples: 39200
+  Accuracy: XX.X%
+  ...
+  
+v1.1.0 👉 CURRENT
+  Created: 2025-11-02T11:36:36
+  Trained samples: XXXXX
+  Accuracy: XX.X%
+  ...
+================================================================================
+
+
+```
+
 
 ---
 
