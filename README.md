@@ -506,6 +506,14 @@ Should see:
 [3] ⚠️ FALL DETECTED! | Risk: 87.5% | RL Action: alert | Time: 1.5ms
 [4] ✅ Normal | Risk: 9.1% | RL Action: do_nothing | Time: 1.0ms
 
+Note:
+RL Action <- RL algorithm (LSTM current prediction, LSTM prediction history (recent last n-predictions))
+
+state <- action(LSTM current prediction), trend(LSTM prediction history), event frequency)
+action <- Q-table[state, action]
+
+possible actions: do_nothing, notify_low_priority, notify_high_priority, alert
+
 ```
 ---
 ## 📊 Understanding Which Model is Better
