@@ -425,16 +425,98 @@ Note: Commands being received and processed
    ```
 
 ---
+### **Training phase**
+### Check logs
+1. Open Operator Interface -> Training Control tab
+2. Set parameters:
+   - Data Window (hours): 720
+   - Training Epochs: 50
+   - Validation Split: 0.2
+3.  Click "🚀 Start Training"
+4.  Watch the logs:
 
+docker logs -f custom-lstm-detector
+```
+**See something like:**
+
+================================================================================
+🎓 STARTING TRAINING FROM INFLUXDB
+================================================================================
+  Data source: InfluxDB training_data bucket
+  Time range: Last 720 hours  ← THIS WILL WORK!
+  Epochs: 50
+  Validation split: 20.0%
+================================================================================
+
+📊 Fetching training data from InfluxDB...
+✅ Found 42309 training samples
+📊 Preparing training dataset...
+   Training samples: 33847
+   Validation samples: 8462
+   
+📊 Training LSTM model...
+Epoch 1/50: loss=0.2345, val_loss=0.1987
+Epoch 2/50: loss=0.1876, val_loss=0.1654
+...
+Epoch 50/50: loss=0.0234, val_loss=0.0287
+
+================================================================================
+📊 VALIDATION RESULTS
+================================================================================
+Accuracy: 95.8%
+Precision: 94.2%
+Recall: 96.1%
+F1 Score: 0.951
+
+Confusion Matrix:
+                 Predicted Normal  Predicted Fall
+Actual Normal            7854              144
+Actual Fall               164              300
+
+True Positives: 300
+False Positives: 144
+True Negatives: 7854
+False Negatives: 164
+================================================================================
+
+✅ Model v1.5.0 saved successfully!
+🏆 New best model: v1.5.0 (Accuracy: 95.8%)
+```
+---
+### **Inference Mode (test model)**
+### Automatically swift to Inference
+In Jupyter Notebook (sensor_simulator.ipynb)
+
+### Generate inference test data
+```
+generate_inference_data(
+    duration=60,          # 60 seconds of testing
+    fall_probability=0.1  # 10% falls
+)
+```
+
+In SSH terminal to HUB NVIDIA Jetson nano:
+
+docker logs -f custom-lstm-detector
+```
+Should see:
+
+[1] ✅ Normal | Risk: 8.2% | RL Action: do_nothing | Time: 1.2ms
+[2] ✅ Normal | Risk: 12.4% | RL Action: do_nothing | Time: 1.1ms
+[3] ⚠️ FALL DETECTED! | Risk: 87.5% | RL Action: alert | Time: 1.5ms
+[4] ✅ Normal | Risk: 9.1% | RL Action: do_nothing | Time: 1.0ms
+
+```
+---
 ## 📊 Understanding Which Model is Better
 Key Metrics (in order of importance):
 
-| Metric |What It Means | Target |
-|--------|--------------|--------|
-| Recall | % of real falls detected | >90% (Most Important!) |
-| Accuracy | % of correct predictions overall | >90% |
-| Precision | % of fall alerts that are real | >85% |
-|F1 Score | Balance of precision & recall | >0.90 |
+| Metric |What It Means | Target | Meaning |
+|--------|--------------|--------|---------|
+| Recall | % of real falls detected | >90% (Most Important!) | Catches most falls (most import) |
+| Accuracy | % of correct predictions overall | >90% | Model is good |
+| Precision | % of fall alerts that are real | >85% | Few false alarms (few False Positives) |
+|F1 Score | Balance of precision & recall | >0.90 | Overall excellent |
 
 Example Comparison between models:
 
@@ -442,6 +524,8 @@ Example Comparison between models:
 - v1.1.0: Accuracy 92.0%, Recall 90.0%, F1 0.892, 500 samples
 
 Winner: v1.2.0 🏆 (Better in every metric!)
+
+Note: If metrics are good ==> Proceed to inference testing, otherwise are bad ==> Retrain with more/better data.
 
 ## 📊 Usage
 
