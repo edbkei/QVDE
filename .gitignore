@@ -1,0 +1,25 @@
+# Secrets
+.env
+
+# Runtime data
+influxdb/data/
+influxdb/config/
+grafana/data/
+mosquitto/data/
+mosquitto/log/
+logs/
+*.log
+
+# Backups
+*.backup
+*.back
+*~
+scripts.backup/
+models.backup/
+grafana/provisioning.backup/
+
+# Python
+__pycache__/
+*.pyc
+venv/
+.ipynb_checkpoints/

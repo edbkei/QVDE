@@ -1,0 +1,21 @@
+global:
+  mqtt_broker: "mosquitto"
+  mqtt_port: 1883
+  influxdb_url: "http://influxdb:8086"
+  influxdb_token: "my-super-secret-auth-token"
+  influxdb_org: "myorg"
+  influxdb_bucket: "sensors"
+
+houses:
+  - house_id: "house_001"
+    name: "My Home"
+    address: "123 Main St"
+    residents:
+      - name: "User"
+        age: 70
+    sensors:
+      - sensor_id: "sensor_accel_001"
+        sensor_type: "accelerometer"
+        application: "fall_detection"
+        location: "bedroom"
+        enabled: true

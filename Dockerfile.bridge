@@ -1,0 +1,14 @@
+FROM python:3.10-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+
+COPY requirements-bridge.txt .
+RUN pip install --no-cache-dir -r requirements-bridge.txt
+
+COPY scripts/enhanced_mqtt_bridge.py /app/
+
+RUN mkdir -p /app/logs
+
+CMD ["python", "-u", "enhanced_mqtt_bridge.py"]

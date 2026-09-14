@@ -1,0 +1,17 @@
+{
+  "version": "v1.3.0",
+  "major": 1,
+  "minor": 3,
+  "patch": 0,
+  "created_at": "2025-11-09T17:33:39.419668",
+  "metadata": {
+    "trained_samples": 792,
+    "epochs": 100,
+    "validation_accuracy": 0.8592964824120602,
+    "validation_precision": 0.32142857142857145,
+    "validation_recall": 0.5,
+    "validation_f1_score": 0.391304347826087,
+    "training_hours": 24,
+    "data_source": "influxdb_training_bucket"
+  }
+}

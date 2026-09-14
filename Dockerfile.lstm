@@ -1,0 +1,15 @@
+FROM python:3.10-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+
+COPY requirements-lstm.txt .
+RUN pip install --no-cache-dir -r requirements-lstm.txt
+
+COPY scripts/custom_lstm_persistence.py /app/
+COPY scripts/enhanced_integrated_lstm_service.py /app/
+
+RUN mkdir -p /app/models /app/logs
+
+CMD ["python", "-u", "enhanced_integrated_lstm_service.py"]
