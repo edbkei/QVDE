@@ -333,161 +333,162 @@ The system uses digital twins for:
    jupyter notebook or Anaconda/Jupyter/ choose sensor_simulator.ipynb
    
    ```
+6. **Everyday update of any script in github.com/edbkei/QVDE**
+ ```bash
+   # In VScode, for instance, update the file scripts/enhanced_integrated_lstm_service.py
 
-### Everyday update of any script in github.com/edbkei/QVDE
-In VScode, for instance, update the file scripts/enhanced_integrated_lstm_service.py
+   # In Jetson:
+   cd /mnt/nvme/iot-stack
 
-In Jetson:
-cd /mnt/nvme/iot-stack
+   # 1. See what changed
+   git status
+   git diff
 
-### 1. See what changed
-git status
-git diff
+   # 2. stage and commit
+   git add scripts/enhanced_integrated_lstm_service.py
+   git commit -m "Fix inference field names: accel_x/y/z -> x/y/z
+   comments comments ..."
 
-### 2. stage and commit
-git add scripts/enhanced_integrated_lstm_service.py
-git commit -m "Fix inference field names: accel_x/y/z -> x/y/z
-comments comments ..."
+   # 3. publish
+   git push origin main
 
-### 3. publish
-git push origin main
+   # Note:
+   # git diff before staging is hte habit worth building - it shows exactly what you´re about to record,
+   # and catches the stray debug line you forgot to remove
 
-Note:
-git diff before staging is hte habit worth building - it shows exactly what you´re about to record,
-and catches the stray debug line you forgot to remove
+   # Prefer git add <file> over git add -A
+   # -A is what pulled .env in earlier. Name the files, or use git add -p to step through changes hunk by hunk and approve each one. 
+   # When wanting everything, run git status --short, first and read it.
 
-Prefer git add <file> over git add -A
--A is what pulled .env in earlier. Name the files, or use git add -p to step through changes hunk by hunk and approve each one. 
-When wanting everything, run git status --short, first and read it.
+   # 4. Deploying a change
+   # The script lives in the image, not a bind mount, so editing a file doesn´t affect the running container:
 
-### 4. Deploying a change
-The script lives in the image, not a bind mount, so editing a file doesn´t affect the running container:
+   sudo docker compose build enhanced_integrated_lstm_service
+   sudo docker compose up -d enhanced _integrated_lstm_service 
+   sudo docker compoe logs --tail 30 enhanced_integrated_lstm_service
 
-sudo docker compose build enhanced_integrated_lstm_service
-sudo docker compose up -d enhanced _integrated_lstm_service 
-sudo docker compoe logs --tail 30 enhanced_integrated_lstm_service
+   # 5. Tag anything it is cited
+   # To produce a number that goes in the thesis:
 
-### 5. Tag anything it is cited
-To produce a number that goes in the thesis:
+   git tag -a v1.7.0-fieldfix -m "Post field-name fix: F1=0.xx, recall=0.xx"
+   git push origin --tags
+   # note: the tag can be referenced in thesis, and the exact code is recoverable.
 
-git tag -a v1.7.0-fieldfix -m "Post field-name fix: F1=0.xx, recall=0.xx"
-git push origin --tags
-note: the tag can be referenced in thesis, and the exact code is recoverable.
+   # 6. Useful when things go sideways
 
-### 6. Useful when things go sideways
+   git diff HEAD~1              # what did my last commit change?
+   git checkout -- <file>       # discard uncommited edits to on file
+   git log --oneline -10        # recent history
+   git log -p -- scripts/foo.py # full history of one file
 
-git diff HEAD~1              # what did my last commit change?
-git checkout -- <file>       # discard uncommited edits to on file
-git log --oneline -10        # recent history
-git log -p -- scripts/foo.py # full history of one file
+   # 7. The pre-commit reflex
+   # Before every git push, do:
 
-### 7. The pre-commit reflex
-Before every git push, do:
+   git grep --cached -n "mZYXd\|password\|token"
 
-git grep --cached -n "mZYXd\|password\|token"
+   # Note: Takes a second a would have caught the .env problem. Worth doing  util it´s automatic
 
-Note: Takes a second a would have caught the .env problem. Worth doing  util it´s automatic
+   # 8. Frequent update in any file
 
-### 8. Frequent update in README.md
+   cd /mnt/nvme/iot-stack
 
-cd /mnt/nvme/iot-stack
+   git pull origin main        # start of session
+   # ... edit files ...        using VSCODE, for instance
+   git status                  # what changed
+   git diff                    # how it was changed
+   git add <files>             # stage deliberately, not -A
+   git commit -m "..."         # one logical change per commit
+   git push origin main        # publish
 
-git pull origin main        # start of session
-# ... edit files ...        using VSCODE, for instance
-git status                  # what changed
-git diff                    # how it was changed
-git add <files>             # stage deliberately, not -A
-git commit -m "..."         # one logical change per commit
-git push origin main        # publish
+   # example
+   git diff README.md  # review what changed
+   git add README.md
+   git commit -m "Update README with <what was changed>"
+   git push origin main
 
-### example
-git diff README.md  # review what changed
-git add README.md
-git commit -m "Update README with <what was changed>"
-git push origin main
+   # Note: If git push is rejected with "fetch first" or "behind", the remote moved since last pull:
 
-Note: If git push is rejected with "fetch first" or "behind", the remote moved since last pull:
+   git pull origin main
+   git push origin main
 
-git pull origin main
-git push origin main
+   # Note: With pull.rebase true set, that replays commit on top of the remote´s and kepps history linear.
+   # Run git diff before staging. It´s the moment to catch a paragraph that has been delted by accident.
+   # And before pusing, the secret check - one line, and it´s what would have saved, earlier:
 
-Note: With pull.rebase true set, that replays commit on top of the remote´s and kepps history linear.
-Run git diff before staging. It´s the moment to catch a paragraph that has been delted by accident.
-And before pusing, the secret check - one line, and it´s what would have saved, earlier:
-
-git grep --cached -n "mZYXd\|password\|token"
-
-
-## Evidence that all connections are good
-cd /mnt/nvme/iot-stack
-
-docker logs --tail=20 mqtt-influx-bridge
-
-### Check LSTM service logs
-docker logs --tail=30 custom-lstm-detector
-
-### from operator interface send list_models
-List of models in the /app/models directory
-
-Note: List of available models, status response back to MQTT.
-
-### Test sensor simulator in inference mode
-### Send a single test reading
-simulator.send_reading(is_fall=False, operational_mode="inference")
-
-### check the  bridge logs:
-### should see: 
- - DEBUG: Received message
- - Topic: io/house_001/fall_detection?accelerometer/sensor_
- - Has sensor_data: True
- - Write successful
-
-### 📊 Understanding Log Output
-
-### Breaking down what each part means:
+   git grep --cached -n "mZYXd\|password\|token"
 ```
-?? DEBUG: Received message
-   Topic: iot/model/fall_detection/command
+7. **Everyday update of any script in github.com/edbkei/QVDE**
+ ```bash
+
+   # Evidence that all connections are good
+   cd /mnt/nvme/iot-stack
+
+   docker logs --tail=20 mqtt-influx-bridge
+
+   # Check LSTM service logs
+   docker logs --tail=30 custom-lstm-detector
+
+   # from operator interface send list_models
+   # List of models in the /app/models directory
+
+   # Note: List of available models, status response back to MQTT.
+
+   # Test sensor simulator in inference mode
+   # Send a single test reading
+   simulator.send_reading(is_fall=False, operational_mode="inference")
+
+   # check the  bridge logs:
+   # should see: 
+   #  - DEBUG: Received message
+   #  - Topic: io/house_001/fall_detection?accelerometer/sensor_
+   #  - Has sensor_data: True
+   #  - Write successful
+
+   # 📊 Understanding Log Output
+
+   # Breaking down what each part means:
+
+   # DEBUG: Received message
+   #   Topic: iot/model/fall_detection/command
+
+   # ↳ **Good**: Bridge received MQTT message on command topic
+   #   Payload length: 119 bytes
+   #   First 200 chars: b'{"command": "list_models", ...}'
+
+   # ↳ **Good**: Valid JSON command from Operator Interface
+
+   # 📋 Model Command: list_models
+   #   Parameters: {}
+
+   # ↳ **Good**: Bridge correctly parsed the command
+
+   # ?? Attempting write to bucket: sensors
+   #   Point (first 300 chars): model_commands,application=fall_detection,command=list_models parameters="{}"
+   # ✅ Write successful to sensors!
+
+
+   # 1. Operator Interface is Connected
+   # Topic: iot/model/fall_detection/command
+   # "command": "list_models"
+   # "source": "operator_interface"
+
+   # Note: This shows operator interface successfully sent the list_models command to Jetson
+
+   # 2. MQTT Bridge is Working
+   # 📋 Model Command: list_models
+   #   Parameters: {}
+   # ✅ Write successful to sensors!
+
+   # Note: The bridge received the command and logged it to InfluxDB
+
+   # 3. Communication flow is Active
+   # Operator Interface (Desktop) 
+   #    → MQTT Command 
+   #    → Jetson MQTT Broker 
+   #    → MQTT Bridge 
+   #    → Logged Successfully
+   # Note: Commands being received and processed
 ```
-↳ **Good**: Bridge received MQTT message on command topic
-```
-   Payload length: 119 bytes
-   First 200 chars: b'{"command": "list_models", ...}'
-```
-↳ **Good**: Valid JSON command from Operator Interface
-```
-📋 Model Command: list_models
-   Parameters: {}
-```
-↳ **Good**: Bridge correctly parsed the command
-```
-?? Attempting write to bucket: sensors
-   Point (first 300 chars): model_commands,application=fall_detection,command=list_models parameters="{}"
-✅ Write successful to sensors!
-
-
-# 1. Operator Interface is Connected
-Topic: iot/model/fall_detection/command
-"command": "list_models"
-"source": "operator_interface"
-
-Note: This shows operator interface successfully sent the list_models command to Jetson
-
-# 2. MQTT Bridge is Working
-📋 Model Command: list_models
-   Parameters: {}
-✅ Write successful to sensors!
-
-Note: The bridge received the command and logged it to InfluxDB
-
-# 3. Communication flow is Active
-Operator Interface (Desktop) 
-    → MQTT Command 
-    → Jetson MQTT Broker 
-    → MQTT Bridge 
-    → Logged Successfully
-Note: Commands being received and processed
-
 
 
 ### First-Time Setup
