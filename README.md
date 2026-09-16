@@ -333,7 +333,92 @@ The system uses digital twins for:
    jupyter notebook or Anaconda/Jupyter/ choose sensor_simulator.ipynb
    
    ```
-### Evidence that all connections are good
+
+### Everyday update of any script in github.com/edbkei/QVDE
+In VScode, for instance, update the file scripts/enhanced_integrated_lstm_service.py
+
+In Jetson:
+cd /mnt/nvme/iot-stack
+
+### 1. See what changed
+git status
+git diff
+
+### 2. stage and commit
+git add scripts/enhanced_integrated_lstm_service.py
+git commit -m "Fix inference field names: accel_x/y/z -> x/y/z
+comments comments ..."
+
+### 3. publish
+git push origin main
+
+Note:
+git diff before staging is hte habit worth building - it shows exactly what you´re about to record,
+and catches the stray debug line you forgot to remove
+
+Prefer git add <file> over git add -A
+-A is what pulled .env in earlier. Name the files, or use git add -p to step through changes hunk by hunk and approve each one. 
+When wanting everything, run git status --short, first and read it.
+
+### 4. Deploying a change
+The script lives in the image, not a bind mount, so editing a file doesn´t affect the running container:
+
+sudo docker compose build enhanced_integrated_lstm_service
+sudo docker compose up -d enhanced _integrated_lstm_service 
+sudo docker compoe logs --tail 30 enhanced_integrated_lstm_service
+
+### 5. Tag anything it is cited
+To produce a number that goes in the thesis:
+
+git tag -a v1.7.0-fieldfix -m "Post field-name fix: F1=0.xx, recall=0.xx"
+git push origin --tags
+note: the tag can be referenced in thesis, and the exact code is recoverable.
+
+### 6. Useful when things go sideways
+
+git diff HEAD~1              # what did my last commit change?
+git checkout -- <file>       # discard uncommited edits to on file
+git log --oneline -10        # recent history
+git log -p -- scripts/foo.py # full history of one file
+
+### 7. The pre-commit reflex
+Before every git push, do:
+
+git grep --cached -n "mZYXd\|password\|token"
+
+Note: Takes a second a would have caught the .env problem. Worth doing  util it´s automatic
+
+### 8. Frequent update in README.md
+
+cd /mnt/nvme/iot-stack
+
+git pull origin main        # start of session
+# ... edit files ...        using VSCODE, for instance
+git status                  # what changed
+git diff                    # how it was changed
+git add <files>             # stage deliberately, not -A
+git commit -m "..."         # one logical change per commit
+git push origin main        # publish
+
+### example
+git diff README.md  # review what changed
+git add README.md
+git commit -m "Update README with <what was changed>"
+git push origin main
+
+Note: If git push is rejected with "fetch first" or "behind", the remote moved since last pull:
+
+git pull origin main
+git push origin main
+
+Note: With pull.rebase true set, that replays commit on top of the remote´s and kepps history linear.
+Run git diff before staging. It´s the moment to catch a paragraph that has been delted by accident.
+And before pusing, the secret check - one line, and it´s what would have saved, earlier:
+
+git grep --cached -n "mZYXd\|password\|token"
+
+
+## Evidence that all connections are good
 cd /mnt/nvme/iot-stack
 
 docker logs --tail=20 mqtt-influx-bridge
