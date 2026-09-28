@@ -1,0 +1,61 @@
+graph TB
+    subgraph "Desktop/Laptop - Operator Tools"
+        OI[🎯 Operator Interface<br/>Web Application<br/>Port: 8501]
+        SS[📡 Sensor Simulator<br/>Jupyter Notebook<br/>Data Generator]
+    end
+    
+    subgraph "Jetson Orin Nano - Backend Services"
+        MQTT[🔌 MQTT Broker<br/>Mosquitto<br/>Port: 1883]
+        
+        subgraph "Data Pipeline"
+            BRIDGE[🌉 MQTT Bridge<br/>Routes Data]
+            INFLUX[(💾 InfluxDB<br/>Time Series DB<br/>Port: 8086)]
+        end
+        
+        subgraph "ML Service"
+            LSTM[🧠 LSTM Service<br/>Training & Inference]
+            MODELS[📦 Models<br/>Storage]
+        end
+        
+        GRAFANA[📊 Grafana<br/>Visualization<br/>Port: 3000]
+    end
+    
+    %% Data Flow - Training
+    SS -->|Training Data<br/>with Labels| MQTT
+    
+    %% Data Flow - Inference
+    SS -->|Inference Data<br/>no Labels| MQTT
+    
+    %% Commands
+    OI -->|Commands<br/>Control| MQTT
+    
+    %% MQTT Routing
+    MQTT -->|All Data| BRIDGE
+    MQTT -->|Commands| LSTM
+    
+    %% Bridge to DB
+    BRIDGE -->|Training Data| INFLUX
+    BRIDGE -->|Inference Data| INFLUX
+    
+    %% LSTM Operations
+    INFLUX -->|Read Training<br/>Data| LSTM
+    INFLUX -->|Read Inference<br/>Data| LSTM
+    LSTM -->|Store Models| MODELS
+    
+    %% Predictions
+    LSTM -->|Predictions<br/>Status| MQTT
+    MQTT -->|Predictions<br/>Status| OI
+    
+    %% Visualization
+    INFLUX -->|Query Data| GRAFANA
+    
+    %% Styling
+    classDef operator fill:#e1f5ff,stroke:#01579b,stroke-width:2px
+    classDef jetson fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    classDef data fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
+    classDef ml fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px
+    
+    class OI,SS operator
+    class MQTT,BRIDGE,GRAFANA jetson
+    class INFLUX,MODELS data
+    class LSTM ml
