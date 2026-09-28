@@ -333,7 +333,7 @@ The system uses digital twins for:
    jupyter notebook or Anaconda/Jupyter/ choose sensor_simulator.ipynb
    
    ```
-6. **Everyday update of any script in github.com/edbkei/QVDE**
+6. **Everyday update of any script in github.com/edbkei/QVDE from Jetson**
  ```bash
       # In VScode, for instance, update the file scripts/enhanced_integrated_lstm_service.py
 
@@ -417,7 +417,7 @@ The system uses digital twins for:
 
       git grep --cached -n "mZYXd\|password\|token"
 ```
-7. **Everyday update of any script in github.com/edbkei/QVDE**
+7. **Everyday update of any script in github.com/edbkei/QVDE from Jetson**
  ```bash
 
       # Evidence that all connections are good
@@ -489,7 +489,23 @@ The system uses digital twins for:
       #    → Logged Successfully
       # Note: Commands being received and processed
 ```
+8. **Everyday update of any script in github.com/edbkei/QVDE from Windows**
+ ```bash
+      # In VScode, for instance, update the file README.md
 
+      # In Windows using Powershell:
+      cd $HOME\QVDE
+      git pull origin main # start of every session
+
+      # ...edit files in desktop\ ...
+
+      git status
+      git diff
+      git diff README.md
+      git add README.md
+      git commit -m "Update README.md from Windows"
+      git push origin main
+```
 
 ### First-Time Setup
 
