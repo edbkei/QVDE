@@ -492,9 +492,9 @@ class EnhancedLSTMFallDetectionService:
                 for record in table.records:
                     point = {
                         'time': record.get_time(),
-                        'sensor_x': record.values.get('sensor_x', 0),
-                        'sensor_y': record.values.get('sensor_y', 0),
-                        'sensor_z': record.values.get('sensor_z', 0),
+                        'sensor_x': record.values.get('sensor_accel_x', 0), # sensor_x
+                        'sensor_y': record.values.get('sensor_accel_y', 0), # sensor_y
+                        'sensor_z': record.values.get('sensor_accel_z', 0), # sensor_z
                         'sensor_gyro_roll': record.values.get('sensor_gyro_roll', 0),
                         'sensor_gyro_pitch': record.values.get('sensor_gyro_pitch', 0),
                         'sensor_gyro_yaw': record.values.get('sensor_gyro_yaw', 0),
