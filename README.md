@@ -400,6 +400,10 @@ The system uses digital twins for:
       git commit -m "..."         # one logical change per commit
       git push origin main        # publish
 
+      # In case push fails due to example Github has A-B-C and laptop/jetson has A-B-C, do first, before git push
+      # git add also need first (check)
+      git pull --rebase origin main
+
       # example
       git diff README.md  # review what changed
       git add README.md
