@@ -48,7 +48,7 @@ The system has two main tools you'll use:
 1. Open terminal/command prompt
 2. Navigate to project directory:
    ```bash
-   cd ~/fall-detection-operator
+   cd ~/QVDE/desktop
    ```
 3. Run the interface:
    ```bash
