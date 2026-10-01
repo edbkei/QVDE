@@ -1,25 +1,17 @@
-# Secrets
-.env
+# Created by venv; see https://docs.python.org/3/library/venv.html
+*
+# Python virtual environment
+.venv/
 
-# Runtime data
-influxdb/data/
-influxdb/config/
-grafana/data/
-mosquitto/data/
-mosquitto/log/
-logs/
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Local data
 *.log
 
-# Backups
-*.backup
-*.back
-*~
-scripts.backup/
-models.backup/
-grafana/provisioning.backup/
-
-# Python
-__pycache__/
-*.pyc
-venv/
-.ipynb_checkpoints/
+# Environment / secrets
+.env
