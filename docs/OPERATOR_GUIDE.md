@@ -395,7 +395,7 @@ docker logs -f custom-lstm-detector
 1. Open browser to: `http://<JETSON_IP>:8086`
 2. Login:
    - Username: `admin`
-   - Password: `adminpassword123`
+   - Password: `<see .env>`
 3. Navigate to **Data Explorer**
 4. Select bucket:
    - `training_data`: Labeled training data

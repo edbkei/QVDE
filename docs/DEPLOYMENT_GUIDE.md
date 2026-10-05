@@ -131,7 +131,7 @@ curl http://localhost:8086/health
 # Open browser and navigate to: http://<JETSON_IP>:8086
 # Login with:
 #   Username: admin
-#   Password: adminpassword123
+#   Password: <see .env>
 #   Organization: nvme_influxdb_org0001
 
 # Verify buckets exist:
