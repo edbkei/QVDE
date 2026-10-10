@@ -511,6 +511,34 @@ The system uses digital twins for:
       git push origin main
 ```
 
+9. **Everyday update of any script in github.com/edbkei/QVDE in Ubuntu/LOCAWEB, this is a working up LLM**
+ ```bash
+      # Using mRemoteNG
+      # qvde_relatorio.py — Generate an output with LLM report for health specialist from an input synthetic data produced by a "possible digital twin"
+ 
+      # Read JSON with:
+      # (1) prediction of fall detection from digital twin (accelerometer and gyroscope);
+      # (2) records from blood pressure medical charts. 
+      # The figures are pre-processed deterministically (averages, classification, orthostatic hypotension, temporal correlation with events), and a local LLM  (Ollama) drafts the report.
+      # Thus, the small model interprets the data but does not perform calculations - and the prompt remains short (important for CPU usage).
+
+      # Only once
+      ollama list
+      ollama pull qwen2.5:3b
+
+      # everyday for an example
+      cd ~/Projects/llm_example
+      ls -la
+      # possibilities:
+      python3 qvde_relatorio.py exemplo_entrada.json --modelo qwen2.5:3b --saida rel_3b.md
+      # other possibilities:
+      python3 qvde_relatorio.py exemplo_entrada.json --modelo qwen2.5:3b --saida relatorio.md
+      python3 qvde_relatorio.py exemplo_entrada.json --prompt-arquivo prompt_exemplo.json
+      python3 qvde_relatorio.py exemplo_entrada.json --somente-contexto     # não chama o LLM
+      cat dados.json | python3 qvde_relatorio.py -
+
+```
+
 ### First-Time Setup
 
 1. **Access Grafana Dashboard**
