@@ -1,0 +1,11 @@
+# Each Hub logs in with username = house_id and may only use its own topics.
+pattern write qvde/v1/%u/up/#
+pattern read  qvde/v1/%u/down/#
+
+# Internal services
+user qvde-ingest
+topic read  qvde/v1/+/up/#
+topic write qvde/v1/+/down/ack
+
+user qvde-admin
+topic write qvde/v1/+/down/desejado

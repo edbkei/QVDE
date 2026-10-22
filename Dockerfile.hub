@@ -1,0 +1,23 @@
+# QVDE Hub (reactive loop). Build from the repository root:
+#   docker build -f Dockerfile.hub -t qvde-hub .
+FROM python:3.10-slim
+
+WORKDIR /app
+COPY hub/requirements.txt /app/hub/requirements.txt
+RUN pip install --no-cache-dir -r /app/hub/requirements.txt
+
+COPY qvde_common /app/qvde_common
+COPY hub /app/hub
+COPY contexts /app/contexts
+COPY src/custom_lstm_persistence.py /app/src/custom_lstm_persistence.py
+
+ENV PYTHONPATH=/app:/app/hub \
+    QVDE_CONTEXTS_DIR=/app/contexts \
+    QVDE_DB_PATH=/app/data/hub.db \
+    QVDE_SHADOW_DIR=/app/data/shadow \
+    QVDE_MODEL_DIR=/app/models
+
+RUN useradd --create-home qvde && mkdir -p /app/data /app/models && chown -R qvde /app/data
+USER qvde
+
+CMD ["python", "-u", "hub/run_hub.py"]

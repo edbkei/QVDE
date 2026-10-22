@@ -1,0 +1,28 @@
+# QVDE Hub service, added next to the existing stack on the Jetson:
+#   docker compose -f docker-compose.yml -f docker-compose.hub.yml up -d qvde-hub
+services:
+  qvde-hub:
+    build:
+      context: .
+      dockerfile: Dockerfile.hub
+    container_name: qvde-hub
+    restart: unless-stopped
+    depends_on:
+      - mosquitto
+    environment:
+      - QVDE_HOUSE_ID=${QVDE_HOUSE_ID:-house_001}
+      - QVDE_LOCAL_BROKER=mosquitto
+      - QVDE_INTERVAL_S=${QVDE_INTERVAL_S:-3}
+      # Cloud digital twin (leave QVDE_CLOUD_BROKER empty to run offline)
+      - QVDE_CLOUD_BROKER=${QVDE_CLOUD_BROKER:-}
+      - QVDE_CLOUD_PORT=${QVDE_CLOUD_PORT:-8883}
+      - QVDE_CLOUD_CA=/app/certs/ca.crt
+      # MQTT login: username = house id, password from scripts/gerar_certificados.sh
+      - QVDE_CLOUD_USER=${QVDE_HOUSE_ID:-house_001}
+      - QVDE_CLOUD_PASSWORD=${QVDE_CLOUD_PASSWORD:-}
+    volumes:
+      - ./hub_data:/app/data
+      - ./models:/app/models:ro
+      - ./certs/hub:/app/certs:ro
+    networks:
+      - iot-network

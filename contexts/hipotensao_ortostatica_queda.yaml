@@ -1,0 +1,22 @@
+# =============================================================================
+# Composite care context: orthostatic hypotension x near-falls (Example 1)
+# =============================================================================
+id: hipotensao_ortostatica_queda
+versao: 1
+nome: Hipotensão ortostática e quedas
+objetivo: Verificar se quase-quedas ocorrem logo após quedas de pressão ao ficar em pé.
+tipo: composto
+execucao: nuvem
+depende_de: [risco_queda, pressao_arterial]
+
+limiares:
+  janela_evento_min: 15          # Delta: event up to N min after the standing measurement
+
+contexto_situacional:
+  periodo_do_dia: {madrugada: [0, 6], manha: [6, 12], tarde: [12, 18], noite: [18, 24]}
+  campos_evento: [local, atividade_previa]
+
+acoes:
+  correlacao_encontrada: [notificar_especialista]
+
+processador: ho_queda

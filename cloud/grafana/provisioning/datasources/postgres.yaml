@@ -1,0 +1,12 @@
+apiVersion: 1
+datasources:
+  - name: QVDE twin
+    type: grafana-postgresql-datasource
+    url: timescaledb:5432
+    user: ${GRAFANA_DB_USER}
+    secureJsonData:
+      password: ${GRAFANA_DB_PASSWORD}
+    jsonData:
+      database: qvde
+      sslmode: disable
+      timescaledb: true
