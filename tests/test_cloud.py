@@ -140,3 +140,19 @@ def test_snapshot_and_report_without_llm(conn):
     assert "Hipotensão ortostática e quedas" in md
     rid = store(conn, "PAC-0007", out)
     assert rid > 0
+
+
+def test_ingest_reconnects_after_database_restart(conn):
+    from qvde_cloud.db import connect
+    from qvde_cloud.ingest import Ingestor
+    ing = Ingestor(connect(DSN), reconnect=lambda: connect(DSN))
+    topic, env = envelope("derivado", DERIVED)
+    ing.handle(topic, json.dumps(env))
+    with conn.cursor() as cur:   # simulate a PostgreSQL restart: kill the ingest backend
+        cur.execute("SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
+                    "WHERE datname=current_database() AND pid<>pg_backend_pid()")
+    conn.commit()
+    topic, env2 = envelope("derivado", DERIVED)
+    assert ing.handle(topic, json.dumps(env2)) == env2["msg_id"]
+    with conn.cursor() as cur:
+        cur.execute("SELECT COUNT(*) FROM derivados"); assert cur.fetchone()[0] == 2

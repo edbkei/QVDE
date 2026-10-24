@@ -15,6 +15,7 @@ import os
 import ssl
 from datetime import datetime, timezone
 
+import psycopg2
 from psycopg2.extras import Json
 
 from qvde_common import protocol
@@ -23,9 +24,16 @@ log = logging.getLogger("qvde.ingest")
 
 
 class Ingestor:
-    def __init__(self, conn):
+    def __init__(self, conn, reconnect=None):
+        """reconnect: callable returning a new connection, used when the database restarts."""
         self.conn = conn
+        self.reconnect = reconnect
         self._houses: set[str] = set()
+
+    def _ensure_connection(self) -> None:
+        if self.conn.closed and self.reconnect:
+            log.warning("database connection closed; reconnecting")
+            self.conn = self.reconnect()
 
     def known_house(self, house_id: str) -> bool:
         if house_id not in self._houses:
@@ -39,6 +47,21 @@ class Ingestor:
         """Store one message; return its msg_id to acknowledge, or None if rejected."""
         house, kind = protocol.parse_up_topic(topic)
         env = protocol.parse_envelope(payload, expected_house=house, expected_kind=kind)
+        for attempt in (1, 2):
+            self._ensure_connection()
+            try:
+                return self._store(house, kind, env)
+            except (psycopg2.OperationalError, psycopg2.InterfaceError):
+                # database restarted: drop the broken connection and retry once
+                if attempt == 2 or not self.reconnect:
+                    raise
+                try:
+                    self.conn.close()
+                except Exception:
+                    pass
+        return None
+
+    def _store(self, house: str, kind: str, env: dict) -> str:
         if not self.known_house(house):
             raise ValueError(f"unknown residence {house}")
         handler = getattr(self, f"_store_{kind}")
@@ -46,7 +69,8 @@ class Ingestor:
             with self.conn, self.conn.cursor() as cur:
                 handler(cur, env)
         except Exception:
-            self.conn.rollback()
+            if not self.conn.closed:
+                self.conn.rollback()
             raise
         return env["msg_id"]
 
@@ -128,14 +152,28 @@ def build_client(ingestor: Ingestor, host: str, port: int = 1883, user: str | No
     return client
 
 
+def _connect_with_retry(connect, attempts: int = 30, delay_s: float = 2.0):
+    """Wait for PostgreSQL (e.g. still initializing after a restart)."""
+    import time
+    for i in range(1, attempts + 1):
+        try:
+            return connect()
+        except psycopg2.OperationalError as exc:
+            if i == attempts:
+                raise
+            log.warning("database not ready (%s); retry %d/%d", str(exc).splitlines()[0], i, attempts)
+            time.sleep(delay_s)
+
+
 def main() -> None:  # pragma: no cover - network service
     from .db import apply_schema, connect
 
     logging.basicConfig(level=os.environ.get("QVDE_LOG_LEVEL", "INFO"),
                         format="%(asctime)s %(levelname)s %(name)s: %(message)s")
-    conn = connect()
+    conn = _connect_with_retry(connect)
     apply_schema(conn)
-    client = build_client(Ingestor(conn), os.environ.get("MQTT_HOST", "mosquitto"),
+    client = build_client(Ingestor(conn, reconnect=lambda: _connect_with_retry(connect)),
+                          os.environ.get("MQTT_HOST", "mosquitto"),
                           int(os.environ.get("MQTT_PORT", 1883)), os.environ.get("MQTT_USER"),
                           os.environ.get("MQTT_PASSWORD"), os.environ.get("MQTT_CA"))
     client.loop_forever(retry_first_connection=True)
