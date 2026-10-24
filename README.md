@@ -529,7 +529,8 @@ The system uses digital twins for:
       ollama pull qwen2.5:3b
 
       # everyday for an example
-      cd ~/Projects/llm_example
+      # cd ~/Projects/llm_example
+      cd ~/QVDE
       ls -la
       # possibilities:
       python3 qvde_relatorio.py exemplo_entrada.json --modelo qwen2.5:3b --saida rel_3b.md
