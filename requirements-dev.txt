@@ -1,0 +1,3 @@
+-r hub/requirements.txt
+-r cloud/requirements.txt
+pytest>=8

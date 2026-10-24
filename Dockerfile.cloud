@@ -1,0 +1,17 @@
+# QVDE cloud services (ingest, twin admin, report job). Build from the repository root:
+#   docker build -f Dockerfile.cloud -t qvde-cloud .
+FROM python:3.10-slim
+
+WORKDIR /app
+COPY cloud/requirements.txt /app/cloud/requirements.txt
+RUN pip install --no-cache-dir -r /app/cloud/requirements.txt
+
+COPY qvde_common /app/qvde_common
+COPY cloud /app/cloud
+COPY contexts /app/contexts
+
+ENV PYTHONPATH=/app:/app/cloud
+RUN useradd --create-home qvde
+USER qvde
+
+CMD ["python", "-u", "-m", "qvde_cloud.ingest"]

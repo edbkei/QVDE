@@ -18,3 +18,10 @@ __pycache__/
 
 # Environment / secrets
 .env
+
+# QVDE cloud/hub runtime data and secrets
+certs/
+cloud_data/
+hub_data/
+relatorios/
+.env.cloud

@@ -1,0 +1,67 @@
+# =============================================================================
+# Care context: fall risk (contexto de cuidado: risco de queda)
+# Single source of truth for the Hub (reactive loop) and the cloud
+# (digital twin + deliberative loop). Field names follow Table 4.2 of the thesis.
+# =============================================================================
+id: risco_queda
+versao: 1
+nome: Risco de queda
+objetivo: Detectar quedas e estimar o risco de queda a partir do smartphone no bolso.
+tipo: simples
+execucao: hub              # hub = evaluated in the reactive loop (emergency context)
+
+# --- S_req / S_opc: data sources ---------------------------------------------
+fontes:
+  - sensor: smartphone.imu
+    campos: [accel_x, accel_y, accel_z, gyro_roll, gyro_pitch, gyro_yaw]
+    obrigatoria: true
+    taxa_min_hz: 10
+  - sensor: smartphone.barometro
+    obrigatoria: false
+
+# --- Availability (Definition 2): minimum coverage over a window -------------
+disponibilidade:
+  janela_s: 10             # coverage window W
+  cobertura_min: 0.6       # c_min
+
+# --- M: predictive models -----------------------------------------------------
+modelos:
+  deteccao: {id: lstm, janela_amostras: 10}
+  risco: {id: risco_marcha_v1, janela_observacao_h: 24, horizonte_h: 72, execucao: diaria}
+
+# --- Theta: thresholds ---------------------------------------------------------
+limiares:
+  classe_risco: {moderado: 0.3, alto: 0.6}   # kappa_Theta
+  tendencia_delta: 0.05                      # |slope| below this = stable
+  incerteza_alta: 0.15                       # u above this = high
+  horas_uso_minimas: 8                       # report: low-coverage warning
+  evento_queda: 0.9                          # P above this = fall event
+
+# --- Sigma_C: situational dimensions -----------------------------------------
+contexto_situacional:
+  periodo_do_dia: {madrugada: [0, 6], manha: [6, 12], tarde: [12, 18], noite: [18, 24]}
+  campos_evento: [local, atividade_previa]
+
+# --- alpha: admissible actions per level (RL actions of Section 4.6.5) --------
+# a1 alerta_local, a2 notificar_remoto, a3 acionar_robo, a4 solicitar_dados, a5 aguardar
+acoes:
+  nao_avaliado: [solicitar_dados, aguardar]
+  baixo: [aguardar]
+  moderado: [aguardar, solicitar_dados, notificar_remoto, alerta_local]
+  alto: [alerta_local, notificar_remoto, acionar_robo]
+  # situational override: at night a high risk always notifies someone remotely
+  sobreposicoes:
+    - quando: {periodo_do_dia: madrugada, nivel: alto}
+      obrigatorias: [notificar_remoto]
+
+# --- Hub-only: raw-data retention (Section 4.2.2) -----------------------------
+hub:
+  retencao_bruta_dias: 7
+  janela_evento_s: 30
+  limpeza: apos_confirmacao
+
+# --- Cloud report (deliberative loop) -----------------------------------------
+snapshot:
+  campo: gemeo_digital.predicao_queda
+  obrigatorio: true
+processador: risco_queda

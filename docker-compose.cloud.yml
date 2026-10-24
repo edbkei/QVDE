@@ -1,0 +1,96 @@
+# QVDE cloud: digital twin + deliberative loop (e.g. the Locaweb VM).
+#   cp .env.cloud.example .env.cloud   # fill in the secrets
+#   bash scripts/gerar_certificados.sh house_001
+#   docker compose --env-file .env.cloud -f docker-compose.cloud.yml up -d
+# Memory: PostgreSQL + Grafana + Mosquitto + ingest fit in ~1.5 GB; the LLM
+# (profile "llm") needs ~1.5-3 GB more. On a 4 GB VM run Ollama on another VM
+# or natively, and point OLLAMA_HOST to it.
+services:
+  timescaledb:
+    image: timescale/timescaledb:2.17.2-pg16
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=qvde
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    volumes:
+      - ./cloud_data/pg:/var/lib/postgresql/data
+      - ./cloud/db/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+    networks: [qvde-cloud]
+
+  mosquitto:
+    image: eclipse-mosquitto:2.0.20
+    restart: unless-stopped
+    ports:
+      - "8883:8883"            # only the TLS listener is published
+    volumes:
+      - ./cloud/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./cloud/mosquitto/acl:/mosquitto/config/acl:ro
+      - ./cloud_data/mosquitto/passwd:/mosquitto/config/passwd:ro
+      - ./certs/server:/mosquitto/certs:ro
+      - ./cloud_data/mosquitto/data:/mosquitto/data
+    networks: [qvde-cloud]
+
+  ingest:
+    build: {context: ., dockerfile: Dockerfile.cloud}
+    restart: unless-stopped
+    depends_on: [timescaledb, mosquitto]
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@timescaledb:5432/qvde
+      - MQTT_HOST=mosquitto
+      - MQTT_PORT=1883
+      - MQTT_USER=qvde-ingest
+      - MQTT_PASSWORD=${MQTT_INGEST_PASSWORD}
+    networks: [qvde-cloud]
+
+  grafana:
+    image: grafana/grafana:11.3.0
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:3000"  # reach it through an SSH tunnel or a reverse proxy with TLS
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
+      - GRAFANA_DB_USER=${POSTGRES_USER}
+      - GRAFANA_DB_PASSWORD=${POSTGRES_PASSWORD}
+    volumes:
+      - ./cloud/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./cloud_data/grafana:/var/lib/grafana
+    networks: [qvde-cloud]
+
+  # One-shot jobs: docker compose -f docker-compose.cloud.yml run --rm reports --paciente PAC-0007
+  reports:
+    build: {context: ., dockerfile: Dockerfile.cloud}
+    profiles: [jobs]
+    entrypoint: ["python", "-m", "qvde_cloud.report_job"]
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@timescaledb:5432/qvde
+      - OLLAMA_HOST=${OLLAMA_HOST:-http://ollama:11434}
+    volumes:
+      - ./relatorios:/app/relatorios
+    working_dir: /app
+    networks: [qvde-cloud]
+
+  twin-admin:
+    build: {context: ., dockerfile: Dockerfile.cloud}
+    profiles: [jobs]
+    entrypoint: ["python", "-m", "qvde_cloud.twin_admin"]
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@timescaledb:5432/qvde
+      - MQTT_HOST=mosquitto
+      - MQTT_PORT=1883
+      - MQTT_USER=qvde-admin
+      - MQTT_PASSWORD=${MQTT_ADMIN_PASSWORD}
+    working_dir: /app
+    networks: [qvde-cloud]
+
+  ollama:
+    image: ollama/ollama:0.12.6
+    profiles: [llm]
+    restart: unless-stopped
+    volumes:
+      - ./cloud_data/ollama:/root/.ollama
+    networks: [qvde-cloud]
+
+networks:
+  qvde-cloud:
+    driver: bridge

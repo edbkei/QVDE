@@ -64,10 +64,12 @@ By focusing on a specific use case (fall detection), we establish a proven frame
 - **87.88% Validation Accuracy** (v1.1.0 model)
 
 ### 🔐 Privacy & Reliability
-- **100% Local Processing**: No cloud dependencies
-- **Edge Computing**: All AI inference runs on-premise
+- **Edge-first Processing**: Fall detection, decision and actuation run on-premise
+- **Edge Computing**: All emergency AI inference runs on the Hub
 - **Offline Operation**: Continues functioning during internet outages
-- **Data Sovereignty**: Health data never leaves the premises
+- **Data Minimization**: Raw sensor data stays on the Hub for a configurable period; only derived data and labelled event episodes go to the optional cloud digital twin
+
+> **New (care contexts + cloud digital twin):** see [docs/CARE_CONTEXTS_AND_CLOUD.md](docs/CARE_CONTEXTS_AND_CLOUD.md).
 
 ### 📊 Production-Ready Infrastructure
 - **Docker-based Deployment**: Easy setup and updates

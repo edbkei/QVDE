@@ -1,0 +1,38 @@
+# =============================================================================
+# Care context: blood pressure (contexto de cuidado: pressão arterial)
+# Long time scale: evaluated in the cloud from the clinical record.
+# =============================================================================
+id: pressao_arterial
+versao: 1
+nome: Pressão arterial
+objetivo: Acompanhar a pressão arterial e detectar hipotensão ortostática.
+tipo: simples
+execucao: nuvem
+
+fontes:
+  - origem: prontuario
+    padrao: FHIR Observation
+    loinc: [85354-9, 8480-6, 8462-4]
+    obrigatoria: true
+
+limiares:
+  ho_queda_sistolica: 20        # mmHg
+  ho_queda_diastolica: 10       # mmHg
+  janela_pareamento_min: 5      # sitting -> standing
+  classificacao:
+    referencia: Diretriz Brasileira de Hipertensão Arterial 2020 (valores de consultório)
+    faixas:                     # [label, min systolic, min diastolic], most severe first
+      - [HA estágio 3, 180, 110]
+      - [HA estágio 2, 160, 100]
+      - [HA estágio 1, 140, 90]
+      - [Pré-hipertensão, 130, 85]
+      - [Normal, 120, 80]
+      - [Ótima, 0, 0]
+
+acoes:
+  ha_estagio_3: [notificar_especialista]
+
+snapshot:
+  campo: prontuario.pressao_arterial
+  obrigatorio: true
+processador: pressao_arterial
