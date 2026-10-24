@@ -16,6 +16,11 @@ services:
     volumes:
       - ./cloud_data/pg:/var/lib/postgresql/data
       - ./cloud/db/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d qvde"]
+      interval: 5s
+      timeout: 3s
+      retries: 20 
     networks: [qvde-cloud]
 
   mosquitto:
@@ -34,7 +39,11 @@ services:
   ingest:
     build: {context: ., dockerfile: Dockerfile.cloud}
     restart: unless-stopped
-    depends_on: [timescaledb, mosquitto]
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      mosquitto:
+        condition: service_started
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@timescaledb:5432/qvde
       - MQTT_HOST=mosquitto
@@ -61,6 +70,9 @@ services:
   reports:
     build: {context: ., dockerfile: Dockerfile.cloud}
     profiles: [jobs]
+    depends_on:
+      timescaledb:
+        condition: service_healthy
     entrypoint: ["python", "-m", "qvde_cloud.report_job"]
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@timescaledb:5432/qvde
@@ -73,6 +85,11 @@ services:
   twin-admin:
     build: {context: ., dockerfile: Dockerfile.cloud}
     profiles: [jobs]
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      mosquitto:
+        condition: service_started
     entrypoint: ["python", "-m", "qvde_cloud.twin_admin"]
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@timescaledb:5432/qvde
