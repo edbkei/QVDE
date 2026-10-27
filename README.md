@@ -511,6 +511,17 @@ The system uses digital twins for:
       git add README.md
       git commit -m "Update README.md from Windows"
       git push origin main
+
+      # ... add new file ...
+
+      cd $HOME\QVDE
+      git checkout main
+      git pull
+      git status                       # README.CLOUD.md deve aparecer em "Untracked files"
+      git add README.CLOUD.md
+      git commit -m "Add cloud maintenance guide"
+      git push
+
 ```
 
 9. **Everyday update of any script in github.com/edbkei/QVDE in Ubuntu/LOCAWEB, this is a working up LLM**
