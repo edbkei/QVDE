@@ -10,7 +10,7 @@ llm:
   modelo: qwen2.5:1.5b
   timeout_s: 900
   think: null                  # false desliga o "thinking" (ex.: qwen3)
-  opcoes: {temperature: 0.2, num_ctx: 4096, num_thread: 2, num_predict: 700}
+  opcoes: {temperature: 0.2, num_ctx: 4096, num_thread: 2, num_predict: 1000}
 
 prompt:
   versao: relatorio-geriatra-v3
