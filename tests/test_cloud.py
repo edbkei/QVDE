@@ -131,6 +131,10 @@ def test_snapshot_and_report_without_llm(conn):
     assert fall["modelo"] == PROXY_MODEL and fall["horizonte_horas"] is None
     assert len(fall["tendencia"]) >= 7 and len(fall["eventos"]) == 2
     assert len(snap["prontuario"]["pressao_arterial"]) == 6
+    feats = fall["features"]
+    used, total = map(int, feats["dias_com_uso"].split(" de "))
+    assert 7 <= used <= total and feats["horas_uso_media_dia"] > 0
+    assert feats["ultimo_dia_com_uso"] == now.date().isoformat()
 
     out = generate(conn, "PAC-0007", str(ROOT / "contexts/perfis/geriatra.yaml"), call_llm=False)
     md = out["markdown"]

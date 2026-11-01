@@ -68,9 +68,15 @@ def _fall_risk(cur, patient_id, house, since, now) -> dict | None:
     if not risk and not any(p is not None for _, p, _ in daily):
         return None
 
+    # Device use over the whole period (not only its last day): mean hours/day,
+    # number of days with use and the last day with use.
     features = {}
-    if daily:
-        features["horas_uso_dispositivo"] = round(float(daily[-1][2] or 0), 1)
+    period_days = (now.date() - since.date()).days + 1   # calendar days touched by the period
+    used = [(d, float(h or 0)) for d, _, h in daily if (h or 0) > 0]
+    features["horas_uso_media_dia"] = round(sum(h for _, h in used) / period_days, 2)
+    features["dias_com_uso"] = f"{len(used)} de {period_days}"
+    if used:
+        features["ultimo_dia_com_uso"] = used[-1][0].date().isoformat()
     if risk:
         last = risk[-1]
         return {"modelo": last[1], "janela_observacao_horas": last[2], "horizonte_horas": last[3],
