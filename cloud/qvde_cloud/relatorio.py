@@ -156,10 +156,11 @@ def proc_risco_queda(entrada, ctx, _resultados):
     if feats:
         achados.append("Marcha (smartphone no bolso): " + "; ".join(
             f"{k.replace('_', ' ')} = {v}" for k, v in feats.items()) + ".")
-    uso, uso_min = feats.get("horas_uso_dispositivo"), lim.get("horas_uso_minimas")
+    uso = feats.get("horas_uso_media_dia", feats.get("horas_uso_dispositivo"))
+    uso_min = lim.get("horas_uso_minimas")
     if uso is not None and uso_min and uso < uso_min:
-        achados.append(f"Cobertura baixa: smartphone em uso por {uso} h (mínimo configurado {uso_min} h); "
-                       f"variáveis de marcha pouco confiáveis.")
+        achados.append(f"Cobertura baixa: smartphone em uso em média {uso} h/dia (mínimo configurado "
+                       f"{uso_min} h); variáveis de marcha pouco confiáveis.")
 
     sit = ctx.get("contexto_situacional")
     for ev in entrada.get("eventos", []):
@@ -206,23 +207,27 @@ def proc_pressao_arterial(entrada, ctx, _resultados):
                   f"para {round(mean(r['sistolica'] for r in base[meio:]))} mmHg")
     achados = [texto + "."]
 
-    pares = []
-    for i, r in enumerate(regs):
-        if r["posicao"] != "sentado":
+    # One-to-one pairing: each standing measurement is paired with the closest
+    # preceding sitting measurement inside the window; a sitting measurement is
+    # used at most once (orthostatic test = one sitting/standing pair).
+    pares, usados = [], set()
+    janela = lim["janela_pareamento_min"]
+    for q in (r for r in regs if r["posicao"] == "em_pe"):
+        candidatos = [(i, r) for i, r in enumerate(regs)
+                      if r["posicao"] == "sentado" and i not in usados
+                      and 0 < (q["_ts"] - r["_ts"]).total_seconds() / 60 <= janela]
+        if not candidatos:
             continue
-        for q in regs[i + 1:]:
-            if (q["_ts"] - r["_ts"]).total_seconds() / 60 > lim["janela_pareamento_min"]:
-                break
-            if q["posicao"] == "em_pe":
-                ds, dd = r["sistolica"] - q["sistolica"], r["diastolica"] - q["diastolica"]
-                ho = ds >= lim["ho_queda_sistolica"] or dd >= lim["ho_queda_diastolica"]
-                pares.append({"data": r["timestamp"][:16], "sentado": f"{r['sistolica']}/{r['diastolica']}",
-                              "em_pe": f"{q['sistolica']}/{q['diastolica']}", "queda": f"{ds}/{dd}",
-                              "criterio_HO": ho, "_ts_em_pe": q["_ts"]})
-                achados.append(f"{r['timestamp'][:10]}: sentado {r['sistolica']}/{r['diastolica']} -> em pé "
-                               f"{q['sistolica']}/{q['diastolica']} (queda {ds}/{dd} mmHg), "
-                               f"{'ATINGE' if ho else 'NÃO atinge'} critério de hipotensão ortostática.")
-                break
+        i, r = max(candidatos, key=lambda c: c[1]["_ts"])
+        usados.add(i)
+        ds, dd = r["sistolica"] - q["sistolica"], r["diastolica"] - q["diastolica"]
+        ho = ds >= lim["ho_queda_sistolica"] or dd >= lim["ho_queda_diastolica"]
+        pares.append({"data": r["timestamp"][:16], "sentado": f"{r['sistolica']}/{r['diastolica']}",
+                      "em_pe": f"{q['sistolica']}/{q['diastolica']}", "queda": f"{ds}/{dd}",
+                      "criterio_HO": ho, "_ts_em_pe": q["_ts"]})
+        achados.append(f"{r['timestamp'][:10]}: sentado {r['sistolica']}/{r['diastolica']} -> em pé "
+                       f"{q['sistolica']}/{q['diastolica']} (queda {ds}/{dd} mmHg), "
+                       f"{'ATINGE' if ho else 'NÃO atinge'} critério de hipotensão ortostática.")
 
     tabelas = [tabela_md(["Data/hora", "Posição", "PA (mmHg)", "FC", "Classificação", "Origem"],
                          [[r["timestamp"][:16], r["posicao"], f"{r['sistolica']}/{r['diastolica']}",
@@ -240,24 +245,28 @@ def proc_ho_queda(_entrada, ctx, resultados):
     pares = resultados["pressao_arterial"]["dados"]["pares"]
     janela = ctx.get("limiares", {}).get("janela_evento_min", 15)
     sit = ctx.get("contexto_situacional")
-    achados = []
+    achados, n_rel = [], 0
     for ev in eventos:
         t_ev = ts(ev["timestamp"])
-        for p in pares:
-            dt = (t_ev - p["_ts_em_pe"]).total_seconds() / 60
-            if 0 <= dt <= janela:
-                s = descrever_situacao(ev, sit)
-                extra = "; critério de hipotensão ortostática atingido" if p["criterio_HO"] else ""
-                achados.append(f"Evento '{ev.get('tipo')}' em {ev['timestamp'][:16].replace('T', ' ')} "
-                               f"ocorreu {round(dt)} min após medida em pé (queda de PA {p['queda']} mmHg{extra})"
-                               + (f" [{s}]" if s else "") + ".")
+        # rho_Delta, one line per event: the closest standing measurement before it
+        anteriores = [(p, (t_ev - p["_ts_em_pe"]).total_seconds() / 60) for p in pares]
+        anteriores = [(p, dt) for p, dt in anteriores if 0 <= dt <= janela]
+        if not anteriores:
+            continue
+        p, dt = min(anteriores, key=lambda x: x[1])
+        n_rel += 1
+        s_ = descrever_situacao(ev, sit)
+        extra = "; critério de hipotensão ortostática atingido" if p["criterio_HO"] else ""
+        achados.append(f"Evento '{ev.get('tipo')}' em {ev['timestamp'][:16].replace('T', ' ')} "
+                       f"ocorreu {round(dt)} min após medida em pé (queda de PA {p['queda']} mmHg{extra})"
+                       + (f" [{s_}]" if s_ else "") + ".")
+    if eventos:
+        achados.append(f"{n_rel} de {len(eventos)} eventos ocorreram até {janela} min após uma medida em pé.")
     if pares:
         n_ho = sum(p["criterio_HO"] for p in pares)
         achados.append(f"{n_ho} de {len(pares)} pares sentado/em pé atingiram critério de hipotensão ortostática.")
-    if not any("após medida em pé" in a for a in achados):
-        achados.append(f"Nenhum evento ocorreu até {janela} min após medida em pé.")
+    achados.append("Relação temporal (coocorrência), não causal.")
     return {"achados": achados, "tabelas": [], "dados": {}}
-
 
 PROCESSADORES = {
     "risco_queda": proc_risco_queda,
