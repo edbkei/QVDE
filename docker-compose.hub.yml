@@ -13,6 +13,8 @@ services:
       - QVDE_HOUSE_ID=${QVDE_HOUSE_ID:-house_001}
       - QVDE_LOCAL_BROKER=mosquitto
       - QVDE_INTERVAL_S=${QVDE_INTERVAL_S:-3}
+      # House time zone: period of the day (sigma_per) and timestamps; the container itself runs in UTC
+      - QVDE_TIMEZONE=${QVDE_TIMEZONE:-America/Sao_Paulo}
       # Cloud digital twin (leave QVDE_CLOUD_BROKER empty to run offline)
       - QVDE_CLOUD_BROKER=${QVDE_CLOUD_BROKER:-}
       - QVDE_CLOUD_PORT=${QVDE_CLOUD_PORT:-8883}

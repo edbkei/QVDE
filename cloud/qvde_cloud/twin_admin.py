@@ -29,11 +29,15 @@ from psycopg2.extras import Json
 
 from qvde_common import protocol
 from qvde_common.contexts import load_context_dir
+from qvde_common.timeutil import house_tz
 
 from .db import apply_schema, connect
 
 
-def register_residence(conn, house, patient, age=None, sex=None, conditions=(), meds=(), contexts=()):
+def register_residence(conn, house, patient, age=None, sex=None, conditions=(), meds=(), contexts=(),
+                       timezone_name=None):
+    if timezone_name:
+        house_tz(timezone_name)   # raises for an unknown IANA zone
     with conn, conn.cursor() as cur:
         cur.execute(
             """INSERT INTO pacientes (paciente_id, idade, sexo, condicoes, medicamentos, contextos_ativos)
@@ -42,9 +46,11 @@ def register_residence(conn, house, patient, age=None, sex=None, conditions=(), 
                  condicoes=EXCLUDED.condicoes, medicamentos=EXCLUDED.medicamentos,
                  contextos_ativos=EXCLUDED.contextos_ativos""",
             (patient, age, sex, list(conditions), list(meds), list(contexts)))
-        cur.execute("""INSERT INTO residencias (house_id, paciente_id) VALUES (%s,%s)
-                       ON CONFLICT (house_id) DO UPDATE SET paciente_id=EXCLUDED.paciente_id""",
-                    (house, patient))
+        cur.execute("""INSERT INTO residencias (house_id, paciente_id, fuso_horario)
+                       VALUES (%s,%s,COALESCE(%s,'America/Sao_Paulo'))
+                       ON CONFLICT (house_id) DO UPDATE SET paciente_id=EXCLUDED.paciente_id,
+                         fuso_horario=COALESCE(%s, residencias.fuso_horario)""",
+                    (house, patient, timezone_name, timezone_name))
 
 
 def publish_contexts(conn, directory) -> list[str]:
@@ -179,6 +185,7 @@ def main(argv=None) -> None:
     r.add_argument("--idade", type=int); r.add_argument("--sexo")
     r.add_argument("--condicoes", default=""); r.add_argument("--medicamentos", default="")
     r.add_argument("--contextos", default="risco_queda")
+    r.add_argument("--fuso", help="IANA time zone of the house, e.g. America/Bahia (default America/Sao_Paulo)")
     p = sub.add_parser("publicar-contextos"); p.add_argument("--dir", default="contexts")
     m = sub.add_parser("registrar-modelo")
     m.add_argument("--nome", required=True); m.add_argument("--versao", required=True)
@@ -198,7 +205,8 @@ def main(argv=None) -> None:
         apply_schema(conn); print("schema applied")
     elif args.cmd == "registrar-residencia":
         register_residence(conn, args.house, args.paciente, args.idade, args.sexo,
-                           split(args.condicoes), split(args.medicamentos), split(args.contextos))
+                           split(args.condicoes), split(args.medicamentos), split(args.contextos),
+                           args.fuso)
         print(f"{args.house} -> {args.paciente}")
     elif args.cmd == "publicar-contextos":
         print("\n".join(publish_contexts(conn, args.dir)) or "nothing new")

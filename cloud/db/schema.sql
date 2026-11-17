@@ -16,8 +16,11 @@ CREATE TABLE IF NOT EXISTS pacientes (
 CREATE TABLE IF NOT EXISTS residencias (
     house_id    TEXT PRIMARY KEY,
     paciente_id TEXT NOT NULL UNIQUE REFERENCES pacientes(paciente_id),
-    criado      TIMESTAMPTZ NOT NULL DEFAULT now()
+    criado      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    fuso_horario TEXT NOT NULL DEFAULT 'America/Sao_Paulo'   -- IANA zone of the house (sigma_per, report times)
 );
+-- existing databases (schema re-applied by twin_admin aplicar-esquema)
+ALTER TABLE residencias ADD COLUMN IF NOT EXISTS fuso_horario TEXT NOT NULL DEFAULT 'America/Sao_Paulo';
 
 -- Derived records sent by the Hub after each inference (reactive loop)
 CREATE TABLE IF NOT EXISTS derivados (

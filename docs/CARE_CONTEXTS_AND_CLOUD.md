@@ -50,8 +50,15 @@ docker logs -f qvde-hub
 
 Configuration (environment, prefix `QVDE_`): `HOUSE_ID`, `LOCAL_BROKER`,
 `INTERVAL_S`, `CLOUD_BROKER`, `CLOUD_PORT`, `CLOUD_CA`, `CLOUD_USER`,
-`CLOUD_PASSWORD`, `LSTM_PATH`, `RL_PATH`. Without `QVDE_CLOUD_BROKER` the Hub
+`CLOUD_PASSWORD`, `LSTM_PATH`, `RL_PATH`, `TIMEZONE`. Without `QVDE_CLOUD_BROKER` the Hub
 runs offline and keeps everything queued.
+
+Time zone: the period of the day (situational context) is computed in the
+house's time zone, `QVDE_TIMEZONE` on the Hub (default `America/Sao_Paulo`) and
+`residencias.fuso_horario` in the cloud (`twin registrar-residencia ... --fuso
+America/Bahia`). Never rely on the machine clock: containers run in UTC, so
+15:49 in Bahia would otherwise become 18:49 "noite". Reports show times in the
+house's zone and use the period the Hub decided with.
 
 Detection model: the newest `models/lstm_v*.pkl`; if none is present, an
 SMV-peak heuristic (`heuristic-smv-v1`) keeps the pipeline running. The model

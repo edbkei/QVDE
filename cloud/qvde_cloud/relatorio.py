@@ -108,12 +108,34 @@ def periodo_do_dia(momento, faixas):
     return None
 
 
+def agrupar_eventos(eventos, cfg_sit, chave_extra=lambda e: None):
+    """Consecutive events with the same day, type and situation become one group, so the
+    findings say "8 eventos 'quase_queda' ... entre 15:49 e 15:54" instead of 8 near-identical lines."""
+    grupos = []
+    for ev in eventos:
+        chave = (ev["timestamp"][:10], ev.get("tipo"), descrever_situacao(ev, cfg_sit), chave_extra(ev))
+        if grupos and grupos[-1][0] == chave:
+            grupos[-1][1].append(ev)
+        else:
+            grupos.append((chave, [ev]))
+    return grupos
+
+
+def faixa_horario(evs):
+    h0, h1 = evs[0]["timestamp"][11:16], evs[-1]["timestamp"][11:16]
+    return f"às {h0}" if h0 == h1 else f"entre {h0} e {h1}"
+
+
 def descrever_situacao(evento, cfg_sit):
     if not cfg_sit:
         return ""
     partes = []
     if "periodo_do_dia" in cfg_sit:
-        p = periodo_do_dia(ts(evento["timestamp"]), cfg_sit["periodo_do_dia"])
+        # sigma_per as seen by the Hub at decision time (house time zone); recomputed from the
+        # timestamp, which the snapshot already gives in the house time zone, only if absent.
+        p = evento.get("periodo")
+        if not p or p == "na":
+            p = periodo_do_dia(ts(evento["timestamp"]), cfg_sit["periodo_do_dia"])
         if p:
             partes.append(f"período: {p}")
     for campo in cfg_sit.get("campos_evento", []):
@@ -163,10 +185,16 @@ def proc_risco_queda(entrada, ctx, _resultados):
                        f"{uso_min} h); variáveis de marcha pouco confiáveis.")
 
     sit = ctx.get("contexto_situacional")
-    for ev in entrada.get("eventos", []):
-        s = descrever_situacao(ev, sit)
-        achados.append(f"Evento '{ev.get('tipo')}' em {ev['timestamp'][:16].replace('T', ' ')}"
-                       + (f" ({s})" if s else "") + ".")
+    eventos = entrada.get("eventos", [])
+    for (dia, tipo, s, _), evs in agrupar_eventos(eventos, sit):
+        if len(evs) == 1:
+            achados.append(f"Evento '{tipo}' em {dia} {faixa_horario(evs)}" + (f" ({s})" if s else "") + ".")
+        else:
+            achados.append(f"{len(evs)} eventos '{tipo}' em {dia} {faixa_horario(evs)}"
+                           + (f" ({s})" if s else "") + ".")
+    if eventos and not any(e.get("tipo") == "queda" for e in eventos):
+        achados.append(f"Nenhuma queda registrada: todos os {len(eventos)} eventos são do tipo "
+                       f"'quase_queda' (sem queda).")
 
     tabelas = []
     if serie:
@@ -203,8 +231,13 @@ def proc_pressao_arterial(entrada, ctx, _resultados):
              + ", ".join(f"{n} em {c}" for c, n in cats.items()) + ")")
     if len(base) >= 4:
         meio = len(base) // 2
-        texto += (f"; sistólica média passou de {round(mean(r['sistolica'] for r in base[:meio]))} "
-                  f"para {round(mean(r['sistolica'] for r in base[meio:]))} mmHg")
+        s0 = round(mean(r['sistolica'] for r in base[:meio]))
+        s1 = round(mean(r['sistolica'] for r in base[meio:]))
+        if s0 == s1:
+            texto += f"; sistólica média estável em {s0} mmHg entre a primeira e a segunda metade das medidas"
+        else:
+            texto += (f"; sistólica média {'subiu' if s1 > s0 else 'caiu'} de {s0} para {s1} mmHg "
+                      f"entre a primeira e a segunda metade das medidas")
     achados = [texto + "."]
 
     # One-to-one pairing: each standing measurement is paired with the closest
@@ -224,7 +257,8 @@ def proc_pressao_arterial(entrada, ctx, _resultados):
         ho = ds >= lim["ho_queda_sistolica"] or dd >= lim["ho_queda_diastolica"]
         pares.append({"data": r["timestamp"][:16], "sentado": f"{r['sistolica']}/{r['diastolica']}",
                       "em_pe": f"{q['sistolica']}/{q['diastolica']}", "queda": f"{ds}/{dd}",
-                      "criterio_HO": ho, "_ts_em_pe": q["_ts"]})
+                      "criterio_HO": ho, "_ts_em_pe": q["_ts"],
+                      "_em_pe": q["timestamp"][:16].replace("T", " ")})
         achados.append(f"{r['timestamp'][:10]}: sentado {r['sistolica']}/{r['diastolica']} -> em pé "
                        f"{q['sistolica']}/{q['diastolica']} (queda {ds}/{dd} mmHg), "
                        f"{'ATINGE' if ho else 'NÃO atinge'} critério de hipotensão ortostática.")
@@ -245,21 +279,26 @@ def proc_ho_queda(_entrada, ctx, resultados):
     pares = resultados["pressao_arterial"]["dados"]["pares"]
     janela = ctx.get("limiares", {}).get("janela_evento_min", 15)
     sit = ctx.get("contexto_situacional")
-    achados, n_rel = [], 0
+    achados, ligados = [], []
     for ev in eventos:
         t_ev = ts(ev["timestamp"])
-        # rho_Delta, one line per event: the closest standing measurement before it
-        anteriores = [(p, (t_ev - p["_ts_em_pe"]).total_seconds() / 60) for p in pares]
-        anteriores = [(p, dt) for p, dt in anteriores if 0 <= dt <= janela]
-        if not anteriores:
-            continue
-        p, dt = min(anteriores, key=lambda x: x[1])
-        n_rel += 1
-        s_ = descrever_situacao(ev, sit)
+        # rho_Delta: the closest standing measurement before the event, within the window
+        anteriores = [(i, (t_ev - p["_ts_em_pe"]).total_seconds() / 60) for i, p in enumerate(pares)]
+        anteriores = [(i, dt) for i, dt in anteriores if 0 <= dt <= janela]
+        if anteriores:
+            i, dt = min(anteriores, key=lambda x: x[1])
+            ligados.append({**ev, "_par": i, "_dt": round(dt)})
+    n_rel = len(ligados)
+    # one line per (standing measurement, day, type, situation)
+    for (dia, tipo, s_, i), evs in agrupar_eventos(ligados, sit, chave_extra=lambda e: e["_par"]):
+        p = pares[i]
         extra = "; critério de hipotensão ortostática atingido" if p["criterio_HO"] else ""
-        achados.append(f"Evento '{ev.get('tipo')}' em {ev['timestamp'][:16].replace('T', ' ')} "
-                       f"ocorreu {round(dt)} min após medida em pé (queda de PA {p['queda']} mmHg{extra})"
-                       + (f" [{s_}]" if s_ else "") + ".")
+        d0, d1 = min(e["_dt"] for e in evs), max(e["_dt"] for e in evs)
+        atraso = f"{d0} min" if d0 == d1 else f"de {d0} a {d1} min"
+        sujeito = (f"Evento '{tipo}' em {dia} {faixa_horario(evs)} ocorreu" if len(evs) == 1 else
+                   f"{len(evs)} eventos '{tipo}' em {dia} {faixa_horario(evs)} ocorreram")
+        achados.append(f"{sujeito} {atraso} após a medida em pé de {p['_em_pe']} "
+                       f"(queda de PA {p['queda']} mmHg{extra})" + (f" [{s_}]" if s_ else "") + ".")
     if eventos:
         achados.append(f"{n_rel} de {len(eventos)} eventos ocorreram até {janela} min após uma medida em pé.")
     if pares:
@@ -381,10 +420,18 @@ def validar_numeros(texto, *fontes):
 # =============================================================================
 # 6. RELATÓRIO
 # =============================================================================
+def _gerado_em(snapshot):
+    g = obter_campo(snapshot, "gemeo_digital.gerado_em")
+    try:
+        return ts(g).strftime("%Y-%m-%d %H:%M") if g else f"{datetime.now():%Y-%m-%d %H:%M}"
+    except (TypeError, ValueError):
+        return f"{datetime.now():%Y-%m-%d %H:%M}"
+
+
 def montar_relatorio(snapshot, perfil, resultados, ignorados, texto, metricas, suspeitos):
     pid = obter_campo(snapshot, "paciente.id") or "sem id"
     partes = [f"# Relatório QVDE — paciente {pid} — {perfil.get('destinatario', '')}",
-              f"Gerado em {datetime.now():%Y-%m-%d %H:%M}. "
+              f"Gerado em {_gerado_em(snapshot)}. "
               f"**Documento de apoio à decisão; não substitui avaliação clínica.**", "",
               "## 1. Achados por contexto de cuidado (determinísticos)", ""]
     for cid, r in resultados.items():

@@ -134,13 +134,15 @@ def test_snapshot_and_report_without_llm(conn):
     feats = fall["features"]
     used, total = map(int, feats["dias_com_uso"].split(" de "))
     assert 7 <= used <= total and feats["horas_uso_media_dia"] > 0
-    assert feats["ultimo_dia_com_uso"] == now.date().isoformat()
+    from qvde_common.timeutil import house_tz, local_time
+    assert feats["ultimo_dia_com_uso"] == local_time(now, house_tz()).date().isoformat()   # house-local day
+    assert snap["gemeo_digital"]["fuso_horario"] == "America/Sao_Paulo"
 
     out = generate(conn, "PAC-0007", str(ROOT / "contexts/perfis/geriatra.yaml"), call_llm=False)
     md = out["markdown"]
     assert "sem horizonte de predição" in md                 # proxy is declared, not disguised
     assert "ATINGE critério de hipotensão ortostática" in md
-    assert md.count("após medida em pé") == 2                # composite context found both pairs
+    assert md.count("após a medida em pé") == 2              # composite context found both pairs
     assert "Hipotensão ortostática e quedas" in md
     rid = store(conn, "PAC-0007", out)
     assert rid > 0

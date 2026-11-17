@@ -25,6 +25,7 @@ from pathlib import Path
 import numpy as np
 
 from qvde_common import protocol
+from qvde_common.timeutil import DEFAULT_TZ, house_tz, local_time
 from qvde_common.contexts import (admissible_actions, coverage, hub_contexts, is_available)
 
 from .buffer import HubStore
@@ -68,6 +69,7 @@ class HubConfig:
     cloud_key: str | None = None
     cloud_user: str | None = None
     cloud_password: str | None = None
+    timezone: str = DEFAULT_TZ         # house time zone (QVDE_TIMEZONE), used for sigma_per
 
     @classmethod
     def from_env(cls) -> "HubConfig":
@@ -79,7 +81,7 @@ class HubConfig:
                            ("rl_path", str), ("interval_s", float), ("derived_every", int),
                            ("cloud_broker", str), ("cloud_port", int), ("cloud_ca", str),
                            ("cloud_cert", str), ("cloud_key", str), ("cloud_user", str),
-                           ("cloud_password", str)):
+                           ("cloud_password", str), ("timezone", str)):
             value = e(f"QVDE_{name.upper()}")
             if value not in (None, ""):
                 setattr(cfg, name, conv(value))
@@ -91,6 +93,7 @@ class HubConfig:
 class HubService:
     def __init__(self, cfg: HubConfig):
         self.cfg = cfg
+        self.tz = house_tz(cfg.timezone)
         Path(cfg.db_path).parent.mkdir(parents=True, exist_ok=True)
         self.store = HubStore(cfg.db_path)
         self.shadow = LocalShadow(cfg.shadow_dir, bundled_contexts=cfg.contexts_dir)
@@ -152,7 +155,10 @@ class HubService:
         ts = received
         if meta.get("timestamp"):
             try:
-                t = datetime.fromisoformat(meta["timestamp"]).timestamp()
+                dt = datetime.fromisoformat(meta["timestamp"])
+                if dt.tzinfo is None:            # naive sensor clock = house-local time
+                    dt = dt.replace(tzinfo=self.tz)
+                t = dt.timestamp()
                 ts = t if abs(t - received) < 300 else received  # guard against clock skew
             except ValueError:
                 pass
@@ -192,7 +198,7 @@ class HubService:
             seq = np.array([r[1:] for r in rows], dtype=float)
             p = self.model.predict_proba(seq)
 
-        moment = datetime.fromtimestamp(now)
+        moment = local_time(now, self.tz)   # house-local time, not the container's (UTC)
         state, nums = build_state(ctx, p, self.recent_p[key], available, moment)
         if p is not None:
             self.recent_p[key].append(p)
@@ -205,7 +211,7 @@ class HubService:
                   "acoes_obrigatorias": list(decision.mandatory),
                   "modelo_versao": self.model.version, "rl_versao": self.agent.version,
                   "intervalo_s": self.cfg.interval_s}
-        iso = datetime.fromtimestamp(now).astimezone().isoformat()
+        iso = moment.isoformat()
         if self.ticks % max(1, self.cfg.derived_every) == 0:
             env = protocol.make_envelope("derivado", house, record, sensor, ts=iso)
             self.store.enqueue(env, protocol.up_topic(house, "derivado"), ts_ref=now)
@@ -220,7 +226,7 @@ class HubService:
         compat = {"fall_detected": (nums["p"] or 0) > 0.5, "fall_probability": nums["p"],
                   "fall_percentage": round((nums["p"] or 0) * 100, 2),
                   "rl_action": decision.action, "rl_state": state.key(),
-                  "context": cid, "timestamp": datetime.now().isoformat(),
+                  "context": cid, "timestamp": local_time(now, self.tz).isoformat(),
                   "model": "qvde_hub", "model_version": self.model.version}
         self.local.publish(self.cfg.compat_prediction_topic, json.dumps(compat), qos=0)
         for action in decision.all_actions:
@@ -232,7 +238,7 @@ class HubService:
             self.last_action[(house, sensor, action)] = (action, now)
             self.local.publish(self.cfg.action_topic.format(house=house), json.dumps(
                 {"acao": action, "contexto": cid, "sensor_id": sensor, "estado": state.as_dict(),
-                 "p": nums["p"], "ts": datetime.fromtimestamp(now).astimezone().isoformat()}), qos=1)
+                 "p": nums["p"], "ts": local_time(now, self.tz).isoformat()}), qos=1)
             log.warning("action %s (context %s, state %s)", action, cid, state.key())
 
     # --------------------------------------------------- events and episodes
