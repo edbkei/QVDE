@@ -90,79 +90,139 @@ By focusing on a specific use case (fall detection), we establish a proven frame
 ### High-Level Architecture
 
 ```
-┌───────────────────────────────────────────────────────────────────────────────┐
-│                               Smart Home Network                              │
-├───────────────────────────────────────────────────────────────────────────────┤
-│                                                                               │
-│  ┌──────────────┐  ┌──────────────────┐  ┌──────────────┐  ┌──────────────┐   │
-│  │  Wearable    │  │    Sensor        │  │ Operation Web|  │  Other IoT   |   |
-│  │  Sensors     │  │   Simulator      │  │  Interface   |  |  Devices     |   |
-│  │ (Accel/Gyro) │  │(Jupyter Notebook)|  | (Port 8501)  │  |              │   │
-|  |              |  |   -- Laptop --   |  | -- Laptop -- |  |              |   | 
-│  └──────┬───────┘  └──────────┬───────┘  └──────┬───────┘  └──────┬───────┘   |
-│         │                     │                 │                 │           |
-│         └─────────────────────┴────────┼────────┘─────────────────┘           │
-│                                        │                                      │
-:                                        :                                      :
-├────────────────────────────────────────┼──────────────────────────────────────┤
-│                                    MQTT Broker                                │
-│                               (Mosquitto - Port 1883)                         │
-│                                        │                                      │
-│            ┌───────────────────────────┼─────────────────────────┐            │
-│            │                           │                         │            │
-│  ┌─────────▼────────┐  ┌───────────────▼────────────┐  ┌─────────▼─────────┐  │
-│  │  MQTT-InfluxDB   │  │        Custom LSTM -       │  │ Grafana Dashboard │  │
-│  │      Bridge      │  │   Fall Detection Service   │  |    (Port 3000)    │  │
-│  │  -- Docker --    │  │       -- Docker --         │  │   -- Docker --    │  │
-│  └────┬─────────────┘  └──┬──────────┬───────────┬──┘  └───────────────────┘  │
-│       │                   │          |           |                            │
-│  ┌────▼───────────────────▼───┐ ┌────▼────┐ ┌────▼────┐                       │
-│  │        InfluxDB            │ | ML/RL   | |         |                       │
-│  │   Time-Series Database     │ | Models  | |   Logs  |                       │
-│  │       (Port 8086)          │ | Version | |         |                       │
-|  |      -- Docker --          | | V1...Vn | |         |                       |
-│  └────────────────────────────┘ └─────────┘ └─────────┘                       │
-│                  NVIDIA Jetson Orin Nano (Edge Computing Hub)                 │
-└───────────────────────────────────────────────────────────────────────────────┘
+┌─ Residência (rede local) ───────────────────────────────────────────────────────────┐
+│                                                                                     │
+│  ┌───────────────┐  ┌───────────────────┐   ┌──────────────────┐  ┌──────────────┐  │
+│  │   Smartphone  │  │    Simulador de   │   │  Interface Web   │  │  Outros IoT  │  │
+│  │    no bolso   │  │ sensores (Jupyter)│   │de Operação (8501)│  │  (ex.: PA)   │  │
+│  │IMU acel./giro.│  │    -- Laptop --   │   │   -- Laptop --   │  │              │  │
+│  └───────┬───────┘  └─────────┬─────────┘   └────────┬─────────┘  └──────┬───────┘  │
+│          │                    │                      │                   │          │
+│          └────────────────────┴───────────┬──────────┴───────────────────┘          │
+│                                           │ MQTT 1883 (somente na rede local)       │
+├─ Jetson Orin Nano — Hub (laço reativo) ───┼─────────────────────────────────────────┤
+│                                           │ ms–s; continua operando sem a nuvem     │
+│                       ┌───────────────────▼───────────────────┐                     │
+│                       │  Mosquitto local (1883)  -- Docker -- │                     │
+│                       └───────────────────┬───────────────────┘                     │
+│                                           │                                         │
+│  ┌────────────────────────────────────────▼──────────────────────────────────────┐  │
+│  │  qvde-hub  -- Docker --                │                                      │  │
+│  │  ┌──────────────────────┐   ┌──────────▼──────────┐   ┌─────────────────────┐ │  │
+│  │  │ Sombra local:        │   │ Adaptadores e       ├──►┤ Buffer bruto SQLite │ │  │
+│  │  │ contextos e modelos v│   │ payload X(t) ∈ R⁶   │   │ retenção de 7 dias; │ │  │
+│  │  │ (estado desejado)    │   └──────────┬──────────┘   │ limpa após ACK      │ │  │
+│  │  └──────────┬───────────┘              │              └─────────────────────┘ │  │
+│  │             │                          │                                      │  │
+│  │  ┌──────────▼──────────────────────────▼───────────────────────────────────┐  │  │
+│  │  │ Avaliador de contextos (cobertura; σ(t) no fuso local) ► LSTM_v ► RL_v  │  │  │
+│  │  └────────────────┬─────────────────────────────────────────┬──────────────┘  │  │
+│  │                   │                                         │                 │  │
+│  │  ┌────────────────▼────────────────┐         ┌──────────────▼──────────────┐  │  │
+│  │  │ Atuação: alerta local, cuidador,│         │ Outbox (fila até o ACK):    │  │  │
+│  │  │ robô (ROS) · qvde/local/+/acao  │         │ derivados, eventos,         │  │  │
+│  │  └─────────────────────────────────┘         │ episódios rotulados, estado │  │  │
+│  │                                              └──────────────┬──────────────┘  │  │
+│  └─────────────────────────────────────────────────────────────┼─────────────────┘  │
+│                                                                │                    │
+├─ MQTT sobre TLS 8883, conexão iniciada pelo Hub ───────────────┼────────────────────┤
+│   ▲ ack · estado desejado (retido) → Sombra local              ▼ só dados derivados │
+├─ Nuvem — VM Locaweb, 2 vCPU / 4 GB (laço deliberativo) ────────┼────────────────────┤
+│                                                                │                    │
+│  ┌──────────────────────────┐                   ┌──────────────▼──────────────┐     │
+│  │ Twin-admin (Orquestrador)├──────────────────►┤     Mosquitto TLS (8883)    │     │
+│  │ contextos e modelos      │                   │         ACL por casa        │     │
+│  │ versionados → gêmeo;     │                   └──────────────┬──────────────┘     │
+│  │ estado desejado → MQTT   │                                  │                    │
+│  └──────────────────────────┘                   ┌──────────────▼──────────────┐     │
+│                                                 │  Ingest (idempotente, ack)  │     │
+│   Grafana 127.0.0.1:3000 (painéis do gêmeo)     └──────────────┬──────────────┘     │
+│                                                                │                    │
+│                                                 ┌──────────────▼──────────────┐     │
+│  ┌────────────────────────┐    ┌────────────┐   │ TimescaleDB (PostgreSQL 16) │     │
+│  │ Ollama nativo (11434)  ├◄───┤ Relatórios ├◄──┤ gêmeo digital: derivados,   │     │
+│  │ qwen2.5:1.5b -- CPU -- │    │(report_job)│   │ eventos, episódios, PA,     │     │
+│  └────────────────────────┘    └────────────┘   │ relatórios e F(y)           │     │
+│                                                 └─────────────────────┬───────┘     │
+│                                                                       │             │
+├─ Laptop — i7-13650HX · 40 GB · RTX 4050 6 GB (reforço deliberativo) ──┼─────────────┤
+│                                                túnel SSH 15432 → 5432 │             │
+│  ┌────────────────────────┐                       ┌───────────────────┴───────┐     │
+│  │ Ollama (11434)         ├◄──────────────────────┤ Relatórios (report_job)   │     │
+│  │ qwen2.5:7b -- GPU --   │                       │ perfil geriatra_7b        │     │
+│  └────────────────────────┘                       └───────────────────────────┘     │
+└─────────────────────────────────────────────────────────────────────────────────────┘
+
 ```
 
 ### Data Flow
 
 ```
-Wearable Sensor → MQTT → Bridge → InfluxDB → LSTM Model → RL Agent → Action
-    (10 Hz)      (1ms)   (5ms)     (10ms)      (1ms)       (0.5ms)   (Alert)
+Laço reativo (Hub — Jetson, opera sem a nuvem)
+Smartphone IMU → MQTT local → Adaptador → Buffer SQLite → Avaliador de contexto → LSTM_v → RL_v → Ação
+   (10 Hz)        (1883)      (X(t)∈R⁶)   (bruto, 7 d)    (cobertura, σ(t))     (10 amostras) (5 ações) (alerta/robô)
+                                                          └────────── ciclo a cada 3 s ──────────┘
+
+Laço deliberativo (nuvem)
+Outbox do Hub → MQTT/TLS 8883 → Ingest → TimescaleDB (gêmeo) → Relatório: achados → LLM → F(y)
+(derivados,      (Hub inicia;     (ack)    (derivados, eventos,   (determinísticos)  (7B laptop: ~12–17 s
+ eventos)         fila offline)             PA, relatórios)                           1,5B VM: ~60 s)
 ```
 
 ### Component Interaction
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                     Sensor Simulator                            │
-│                    (Windows/Laptop)                             │
-└──────────────────────────┬──────────────────────────────────────┘
-                           │ MQTT (JSON)
-                           ↓
+│          Sensor Simulator / smartphone (Windows/Laptop)         │
+└────────────────────────────────┬────────────────────────────────┘
+                                 │ MQTT 1883 (JSON, 10 Hz)
+                                 ↓
 ┌─────────────────────────────────────────────────────────────────┐
-│                  Mosquitto MQTT Broker                          │
-│              Topics: iot/{house_id}/{app}/{type}                │
-└──────────────────────────┬──────────────────────────────────────┘
-                           │
-                  ┌────────┴────────┐
-                  ↓                 ↓
-┌──────────────────────────┐  ┌─────────────────────────────┐
-│  MQTT-InfluxDB Bridge    │  │  LSTM Detection Service     │
-│  - Parse MQTT messages   │  │  - Load model               │
-│  - Tag extraction        │  │  - Query InfluxDB           │
-│  - Write to InfluxDB     │  │  - Run inference            │
-└──────────┬───────────────┘  │  - RL decision-making       │
-           │                  └─────────┬───────────────────┘
-           ↓                            ↓
+│            Mosquitto local (Jetson, só rede da casa)            │
+│  Entrada: iot/{house_id}/fall_detection/{tipo}/{sensor_id}      │
+│  Saída:   qvde/local/{house_id}/acao · ai/fall_prediction       │
+└───────────────┬─────────────────────────────────▲───────────────┘
+                │ leituras                        │ ações
+                ↓                                 │
+┌─────────────────────────────────────────────────┴───────────────┐
+│                     qvde-hub (Jetson, Docker)                   │
+│  - Adaptador: valida casa/sensor, ignora dados de treino        │
+│  - Buffer SQLite: bruto por 7 d; limpa após ACK da nuvem        │
+│  - Avaliador: cobertura ≥ 0,6, σ(t) no fuso da casa             │
+│  - LSTM_v (janela de 10) → RL_v (ação admissível + override)    │
+│  - Sombra local: contextos e modelos ativos (versão v)          │
+│  - Outbox: derivados, eventos, episódios ±30 s, estado          │
+└───────────────┬─────────────────────────────────▲───────────────┘
+                │ up/{derivado|evento|            │ down/ack
+                │    episodio|estado}             │ down/desejado (retido)
+                ↓                                 │   MQTT/TLS 8883 (o Hub inicia)
+┌─────────────────────────────────────────────────┴───────────────┐
+│        Mosquitto nuvem (VM Locaweb) · TLS · ACL por casa        │
+│  Tópicos: qvde/v1/{house_id}/up/... e qvde/v1/{house_id}/down/  │
+└───────────────┬─────────────────────────────────▲───────────────┘
+                ↓                                 │ publica desejado
+┌──────────────────────────────┐  ┌───────────────┴───────────────┐
+│  Ingest                      │  │  Twin-admin (Orquestrador)    │
+│  - Valida o envelope         │  │  - Registra casa e paciente   │
+│  - Grava sem duplicar        │  │  - Publica contextos/modelos  │
+│    (msg_id)                  │  │    versionados                │
+│  - Devolve ACK ao Hub        │  │  - Importa PA (CSV)           │
+└──────────────┬───────────────┘  └───────────────┬───────────────┘
+               ↓                                  ↓
 ┌─────────────────────────────────────────────────────────────────┐
-│                         InfluxDB                                │
-│  Buckets:                                                       │
-│  - sensors (production data)                                    │
-│  - training_data (labeled data)                                 │
-│  Retention: 30 days (configurable)                              │
+│               TimescaleDB / PostgreSQL 16 (gêmeo)               │
+│  Tabelas:                                                       │
+│  - derivados (hypertable), eventos, episodios                   │
+│  - observacoes_pa, pacientes, residencias (fuso_horario)        │
+│  - contextos_repo, modelos_repo, estado_desejado/reportado      │
+│  - relatorios (texto, F(y), métricas)                           │
+└────────────────────────────────┬────────────────────────▲───────┘
+                                 ↓ snapshot               │ grava
+┌────────────────────────────────┴────────────────────────┴───────┐
+│                    Relatórios (report_job)                      │
+│  - Achados determinísticos por contexto de cuidado              │
+│  - LLM interpreta: qwen2.5:1.5b (VM) ou 7b (laptop, túnel SSH)  │
+│  - Calcula F(y) e marca números suspeitos                       │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -170,70 +230,90 @@ Wearable Sensor → MQTT → Bridge → InfluxDB → LSTM Model → RL Agent →
 
 ## 🛠️ Technology Stack
 
-### Edge Computing Platform
-- **NVIDIA Jetson Orin Nano**: AI-accelerated edge device
-  - 6-core ARM CPU
-  - 1024-core NVIDIA Ampere GPU
-  - 8GB RAM
-  - Ubuntu 24.04 LTS
+QVDE runs on three tiers: the **Hub** in the home (reactive loop), a **cloud VM** with the digital twin (deliberative loop) and an optional **GPU workstation** for larger language models.
+
+- **NVIDIA Jetson Orin Nano (8 GB)**: AI-accelerated edge device
+  - 6-core Arm Cortex-A78AE CPU
+  - 1024-core NVIDIA Ampere GPU with 32 Tensor Cores
+  - 8 GB LPDDR5 RAM
+  - Ubuntu 24.04 LTS (JetPack 7.2 / Jetson Linux 39.2); Ubuntu 22.04 with JetPack 6 also works
+  - NVMe SSD for the operating system, containers and data
+
+### Cloud Platform (Digital Twin)
+- **Linux VM (Locaweb)**: 2 vCPU, 4 GB RAM, no GPU, Ubuntu, Docker
+- Only derived data leaves the home; raw sensor data stays on the Hub
 
 ### Core Infrastructure
-- **Docker & Docker Compose**: Containerized deployment
-- **Mosquitto (v2.0+)**: MQTT message broker
-- **InfluxDB (v2.7+)**: Time-series database
-- **Grafana (v10+)**: Visualization and monitoring
-- **Streamlit (3.13+)**: Operation web interface to control the training/inference phase of a ML/AI model.
+- **Docker & Docker Compose v2**: Containerized deployment on the Hub and in the cloud
+- **Mosquitto (2.0.x)**: MQTT broker
+  - Hub: local broker on port 1883, home network only
+  - Cloud: TLS on port 8883, one login and ACL per house (username = `house_id`)
+- **SQLite**: Hub raw-data buffer (7-day retention, deleted only after the cloud acknowledges the derived data) and upload queue (outbox)
+- **PostgreSQL 16 + TimescaleDB 2.17**: Digital twin in the cloud (derived records, events, labelled episodes, blood pressure, versioned care contexts and models, desired/reported state, reports)
+- **Grafana (11.x)**: Twin dashboards in the cloud, bound to `127.0.0.1:3000` (reached through an SSH tunnel) -- being removed
+- **Streamlit (1.x)**: Operation web interface to control the training/inference phase of the ML/AI models
 
 ### AI/ML Stack
-- **Python 3.8+**: Core programming language
+- **Python 3.10+**: Core programming language
 - **NumPy**: Numerical computing
-- **Custom LSTM Implementation**: Optimized for edge devices
-  - 5x faster inference than Keras LSTM
-  - 127x smaller model size
-  - Hand-optimized for ARM/GPU architecture
+- **Custom LSTM implementation (NumPy, CPU)**: Fall detection on the Hub
+  - Input: 10-sample window of 6-axis IMU data (accelerometer + gyroscope)
+  - Lightweight alternative to Keras/TensorFlow for edge deployment
+- **Tabular Q-learning agent**: Chooses one of 5 actions (`alerta_local`, `notificar_remoto`, `acionar_robo`, `solicitar_dados`, `aguardar`) from a discrete state, restricted to the actions each care context allows
+- **Care contexts (YAML)**: Versioned, configurable definitions of sources, thresholds, situational context and admissible actions (`contexts/`)
+- **Ollama + Qwen2.5**: Local language models for the specialist report (no patient data sent to third-party APIs)
+  - `qwen2.5:1.5b` on the cloud VM (CPU, ~9 tokens/s)
+  - `qwen2.5:7b` on a GPU  (RTX 4050 6 GB, ~28 tokens/s)
+- **Numeric fidelity metric F(y)**: Flags numbers in the LLM text that are not in the computed findings
 
 ### Communication Protocols
-- **MQTT**: Low-latency IoT messaging (QoS 1)
-- **HTTP/REST**: API communication with InfluxDB
-- **WebSocket**: Real-time Grafana updates
+- **MQTT (QoS 1)**: Sensors → Hub on the home network
+- **MQTT over TLS (8883)**: Hub ↔ cloud; the connection is always opened by the Hub, so the home exposes no inbound ports
+  - Up: `qvde/v1/{house_id}/up/{derivado|evento|episodio|estado}`
+  - Down: `qvde/v1/{house_id}/down/ack` and `down/desejado` (retained desired state)
+- **HTTP/REST**: Report job → Ollama API
+- **SSH tunnel**: Workstation → cloud database for remote report generation
 
 ### Development Tools
 - **Jupyter Notebook**: Sensor simulation and experimentation
 - **Streamlit**: Operation web interface
-- **Git**: Version control
+- **pytest**: Unit, PostgreSQL and end-to-end MQTT tests
+- **Git / GitHub**: Version control
 - **Docker**: Containerization
 
 ---
 
 ## 🔬 Research Context
 
-This project is part of doctoral research on **Extended Home Quality of Life (QVDE - Qualidade de Vida Domiciliar Estendida)**, focusing on adaptive agentic system paradigms for home healthcare technology integration.
+This project is part of doctoral research at UNICAMP on **Extended Home Quality of Life (QVDE - Qualidade de Vida Domiciliar Estendida)**, focusing on adaptive agentic system paradigms for home healthcare technology integration.
 
 ### Theoretical Framework
 
-The research proposes an intelligent hub architecture that satisfies the formal requirements for agentic systems as defined by Russell & Norvig's "Artificial Intelligence: A Modern Approach":
+The research proposes a hybrid reactive-deliberative architecture (Murphy, 2000): a **reactive loop** on the Hub (milliseconds to seconds, works offline) and a **deliberative loop** in the cloud (digital twin, long-term analysis, language-model reports). The agent properties below follow the weak notion of agency of Wooldridge & Jennings (1995) and the learning agent of Russell & Norvig:
 
-- ✅ **Autonomy**: Self-directed operation without human intervention
-- ✅ **Reactivity**: Real-time response to environmental changes
-- ✅ **Proactivity**: Goal-directed behavior and planning
-- ✅ **Sociability**: Multi-agent communication and coordination
-- ✅ **Adaptability**: Learning from experience (RL agent)
-- ✅ **Goal-Orientation**: Fall detection and prevention objectives
+- ✅ **Autonomy**: The Hub decides and acts without human intervention or cloud connectivity
+- ✅ **Reactivity**: Each care context is evaluated every few seconds; alerts are issued locally
+- 🔶 **Proactivity**: Requests more data when coverage is low and escalates by time of day (e.g., mandatory remote notification at night); fall-risk forecasting is planned
+- 🔶 **Sociability**: Communicates with caregivers, the robotic agent (ROS) and the cloud twin; multi-agent coordination is future work
+- ✅ **Adaptability**: RL agent learns from rewards; care contexts and models are updated from the cloud
+- ✅ **Goal-Orientation**: Fall detection and response, with orthostatic hypotension as a composite context
 
 ### Digital Twin Paradigm
 
-The system uses digital twins for:
-- **Representation**: Virtual models of physical sensors and residents
-- **Learning**: Continuous model improvement from operational data
-- **Prediction**: Anticipating falls before they occur
-- **Optimization**: Refining alert thresholds and response strategies
+The digital twin lives in the cloud and is used for:
+- **Representation**: Pseudonymous patient, house, derived sensor data, events and blood-pressure records
+- **Governance**: Versioned care contexts and models, desired state pushed to each Hub
+- **Learning**: Labelled episodes (±30 s around events) for retraining
+- **Prediction**: Daily fall-risk indicator (currently a proxy from the Hub's detections; a dedicated risk model is planned)
+- **Explanation**: Specialist reports with deterministic findings plus language-model interpretation
 
 ### Key Research Questions Addressed
 
 1. How can isolated IoT devices be integrated into a cohesive healthcare system?
-2. What are the trade-offs between local and cloud processing for health monitoring?
-3. How can reinforcement learning improve alert accuracy and reduce false positives?
+2. How should processing be split between the home and the cloud for health monitoring?
+3. How can reinforcement learning, constrained by care contexts, improve alert accuracy and reduce false positives?
 4. What architectural patterns enable scalable multi-house monitoring?
+5. Can small, locally hosted language models write reliable specialist reports from computed findings?
 
 ---
 
@@ -243,16 +323,20 @@ The system uses digital twins for:
 
 **Hardware Requirements:**
 - NVIDIA Jetson Orin Nano (or compatible edge device)
-- 16GB+ microSD card or NVMe SSD. In case of QVDE, all apps are installed under NVMe SSD, as its performance is 10x faster than microSD, and it supports 256 GB storage, and microSD only 128 GB.
-- Network connectivity (Ethernet or WiFi)
-- (Optional) Wearable accelerometer sensors
+- NVMe SSD (recommended; QVDE uses a 256 GB NVMe for everything) or a 64 GB+ microSD card. NVMe is considerably faster than microSD for containers and databases.
+- Network connectivity (Ethernet or Wi-Fi)
+- A smartphone or wearable with accelerometer and gyroscope (or the sensor simulator)
+- Cloud VM for the digital twin: 2 vCPU, 4 GB RAM, ~40 GB disk, public IP for MQTT/TLS
+- (Optional) Workstation with an NVIDIA GPU (6 GB+ VRAM) for the 7B language model
 
 **Software Requirements:**
-- Ubuntu 22.04+ (ARM64)
-- Docker 24.0+
-- Docker Compose 2.0+
-- Python 3.8+
-- Streamlit 3.13+
+- Jetson: Ubuntu 24.04 (JetPack 7.2) or Ubuntu 22.04 (JetPack 6), ARM64
+- Docker 24.0+ and Docker Compose v2
+- Python 3.10+
+- Streamlit 1.x
+- Ollama (cloud VM and/or GPU workstation)
+- OpenSSL (TLS certificates via `scripts/gerar_certificados.sh`)
+
 
 ### Installation
 
@@ -502,6 +586,17 @@ The system uses digital twins for:
       # In Windows using Powershell:
       cd $HOME\QVDE
       git pull origin main # start of every session
+      # error: cannot pull with rebase: You have unstaged changes.
+      # error: Please commit or stash them.
+      # if this happens do:
+      git status
+      git stash
+      git pull
+      git stash pop
+      git add README.md
+      git commit -m "Update README.md from Windows"
+      git push origin main
+      # end if
 
       # ...edit files in desktop\ ...
 
@@ -551,6 +646,35 @@ The system uses digital twins for:
       cat dados.json | python3 qvde_relatorio.py -
 
 ```
+
+10. **Report Production**
+ ```bash
+      # Using mRemoteNG, open cmd
+      # 10.1 Find IP address in VM, terminal 1
+      docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' qvde-timescaledb-1
+      R: <IP>
+
+      # 10.2 Using Windows Powershell in desktop, terminal 2, tunnel openning towards VM
+      ssh -N -L 15432:<IP>:5432 statuser01@vps55112.publiccloud.com.br
+      
+      # R: no answer means that a tunnel was successfully created
+
+      # 10.3 Using Windows Powershell in desktop, terminal 3
+      conda activate qvde
+      cd $HOME\QVDE
+      # pip install -r cloud\requirements.txt
+      $pw = ssh statuser01@vps55112.publiccloud.com.br "grep ^POSTGRES_PASSWORD= ~/Projects/QVDE/.env.cloud | cut -d= -f2-"
+      $env:DATABASE_URL = "postgresql://qvde:$pw@127.0.0.1:15432/qvde"
+      Remove-Variable pw
+      $env:OLLAMA_HOST = "http://localhost:11434"
+      $env:PYTHONPATH = "$HOME\QVDE;$HOME\QVDE\cloud"
+
+      # 10.4 Using Windows Powershell in desktop, terminal 3, quick test before reports
+      python -m qvde_cloud.report_job --paciente PAC-0001 --perfil contexts\perfis\geriatra_7b.yaml --somente-contexto
+
+
+```
+
 
 ### First-Time Setup
 
