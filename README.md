@@ -589,13 +589,18 @@ The digital twin lives in the cloud and is used for:
       # error: cannot pull with rebase: You have unstaged changes.
       # error: Please commit or stash them.
       # if this happens do:
-      git status
-      git stash
-      git pull
+      git stash list
       git stash pop
+      git status
       git add README.md
-      git commit -m "Update README.md from Windows"
-      git push origin main
+      git commit -m "Update README.md with technology stack, research context and prerequisites"
+      git push
+
+      # To confirm the push worked:
+      git log --oneline -1
+      git status
+      # It should say up to date with origin/main. On github, the README.md should show new text
+
       # end if
 
       # ...edit files in desktop\ ...
@@ -616,6 +621,25 @@ The digital twin lives in the cloud and is used for:
       git add README.CLOUD.md
       git commit -m "Add cloud maintenance guide"
       git push
+
+      # Updates in the sensor_simulator.ipynb have happened, then:
+      
+      git diff --stat desktop\sensor_simulator.ipynb
+      git diff desktop\sensor_simulator.ipynb | Select-String '^[+-]' | Select-String -NotMatch 'image/png|"text/plain"|execution_count' | Select-Object -First 40
+
+      # Note: the second command shows the changed lines, without most of the output noise
+      jupyter nbconvert --clear-output --inplace desktop\sensor_simulator.ipynb
+      git add desktop\sensor_simulator.ipynb
+      git commit -m "Simulator: paho-mqtt 2.x client and Jetson IP"
+      git push
+
+      # if there is no worth happens:
+
+      git restore desktop\sensor_simulator.ipynb
+
+      # Note: Either way, git status will be clean afterwards, and git pull won´t need a stash anymore.
+      # Before committing, check one thing: the repository is public, so make sure the diff has no password or token.
+      # no password should be displayed.
 
 ```
 
